@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}comsocwebapp{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <a class="brand" href="{{ url_for('participant.index') }}">comsocwebapp</a>
+  <nav>
+    {% if g.user %}
+      {% if g.user.is_admin %}<a href="{{ url_for('admin.dashboard') }}">Admin</a>{% endif %}
+      <span class="who">{{ g.user.email }}</span>
+      <a href="{{ url_for('auth.logout') }}">Log out</a>
+    {% else %}
+      <a href="{{ url_for('auth.login') }}">Log in</a>
+    {% endif %}
+  </nav>
+</header>
+
+<main>
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    <p class="flash {{ category }}">{{ message }}</p>
+  {% endfor %}
+
+  <h1>{% block heading %}{% endblock %}</h1>
+  {% block content %}{% endblock %}
+</main>
+
+<footer>comsocwebapp {{ version }}</footer>
+</body>
+</html>

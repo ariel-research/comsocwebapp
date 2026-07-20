@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Open ballots{% endblock %}
+{% block heading %}Open ballots{% endblock %}
+{% block content %}
+{% if settings %}
+<ul class="cards">
+  {% for s in settings %}
+  <li>
+    <h2>{{ s.title }}</h2>
+    <p class="hint">Preference format: {{ s.pref_format }}</p>
+    {% if g.user %}
+      <a class="button" href="{{ url_for('participant.ballot', setting_id=s.id) }}">Vote</a>
+      <a href="{{ url_for('participant.results', setting_id=s.id) }}">Results</a>
+    {% else %}
+      <a class="button" href="{{ url_for('auth.login') }}">Log in to vote</a>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="hint">No ballot is open at the moment.</p>
+{% endif %}
+{% endblock %}

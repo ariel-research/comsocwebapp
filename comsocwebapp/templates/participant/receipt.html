@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Receipt{% endblock %}
+{% block heading %}Your ballot was recorded{% endblock %}
+{% block content %}
+<p>Recorded for <strong>{{ setting.title }}</strong>. You may edit it as long as
+   the ballot stays open.</p>
+<table>
+  <thead><tr><th>Option</th><th>Your value</th></tr></thead>
+  <tbody>
+    {% for row in recorded %}
+      <tr><td>{{ row.option_name }}</td><td>{{ row.value }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>
+  <a class="button" href="{{ url_for('participant.ballot', setting_id=setting.id) }}">Edit</a>
+  <a href="{{ url_for('participant.results', setting_id=setting.id) }}">See results</a>
+</p>
+{% endblock %}

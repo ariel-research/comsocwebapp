@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}New setting{% endblock %}
+{% block heading %}New setting{% endblock %}
+{% block content %}
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>Title <input name="title" required></label>
+  <label>Preference format
+    <select name="pref_format">
+      {% for f in pref_formats %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Budget / point limit (0 if not applicable)
+    <input name="budget_limit" type="number" value="0" min="0"></label>
+  <button type="submit">Create</button>
+</form>
+{% endblock %}

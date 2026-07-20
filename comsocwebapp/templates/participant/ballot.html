@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ setting.title }}{% endblock %}
+{% block heading %}{{ setting.title }}{% endblock %}
+{% block content %}
+
+{% if setting.pref_format == 'approval' %}
+  <p class="hint">Tick every option you approve of.</p>
+{% elif setting.pref_format == 'ranking' %}
+  <p class="hint">Rank the options: 1 is your favourite, then 2, 3, … Leave an
+    option at 0 to say you did not rank it.</p>
+{% elif setting.pref_format == 'budget' %}
+  <p class="hint">Distribute up to {{ setting.budget_limit }} among the projects.</p>
+{% else %}
+  <p class="hint">Give each option a value between 0 and {{ setting.budget_limit or 100 }}.</p>
+{% endif %}
+
+{% if setting.status != 'open' %}
+  <p class="flash error">This ballot is {{ setting.status }} — you can look, but
+    not change your answers.</p>
+{% endif %}
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <table>
+    <thead><tr><th>Option</th><th>Description</th>
+      {% if setting.pref_format == 'budget' %}<th>Cost</th>{% endif %}
+      <th>Your answer</th></tr></thead>
+    <tbody>
+      {% for o in options %}
+      <tr>
+        <td><label for="option_{{ o.id }}">{{ o.name }}</label></td>
+        <td>{{ o.description }}</td>
+        {% if setting.pref_format == 'budget' %}<td>{{ o.cost }}</td>{% endif %}
+        <td>
+          {% if setting.pref_format == 'approval' %}
+            <input type="hidden" name="option_{{ o.id }}" value="0">
+            <input type="checkbox" id="option_{{ o.id }}" name="option_{{ o.id }}"
+                   value="1" {% if current.get(o.id) %}checked{% endif %}>
+          {% else %}
+            <input type="number" id="option_{{ o.id }}" name="option_{{ o.id }}"
+                   value="{{ current.get(o.id, 0) }}" min="0">
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button type="submit" {% if setting.status != 'open' %}disabled{% endif %}>
+    Submit my preferences</button>
+</form>
+{% endblock %}

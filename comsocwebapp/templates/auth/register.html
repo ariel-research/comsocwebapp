@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+{% block heading %}Register to participate{% endblock %}
+{% block content %}
+{% if invitation %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    <label>Email <input name="email" type="email" required autocomplete="username"></label>
+    <label>Password <input name="password" type="password" required
+                           autocomplete="new-password"></label>
+    <button type="submit">Register and vote</button>
+  </form>
+  {% if invitation.is_generic %}
+    <p class="hint">This is a shared invitation link: each email address may
+      register only once.</p>
+  {% endif %}
+{% else %}
+  <p class="flash error">This invitation link is invalid or has already been used.</p>
+  <p><a href="{{ url_for('auth.login') }}">Log in instead</a></p>
+{% endif %}
+{% endblock %}

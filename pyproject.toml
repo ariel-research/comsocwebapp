@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "comsocwebapp"
+version = "0.1.0"
+description = "Flask boilerplate for computational social choice web applications"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Erel Segal-Halevi" }]
+keywords = ["flask", "social choice", "fair division", "voting",
+            "participatory budgeting"]
+classifiers = [
+    "Framework :: Flask",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+# Flask is the only hard dependency: the database layer uses the standard
+# library's sqlite3, and the solver libraries are optional extras.
+dependencies = ["Flask>=3.0"]
+
+[project.optional-dependencies]
+allocation = ["fairpyx"]
+voting = ["abcvoting"]
+budgeting = ["pabutools"]
+all = ["fairpyx", "abcvoting", "pabutools"]
+dev = ["pytest", "pytest-cov"]
+
+[project.urls]
+Homepage = "https://github.com/erelsgl/comsocwebapp"
+
+[tool.setuptools.packages.find]
+include = ["comsocwebapp*"]
+
+[tool.setuptools.package-data]
+comsocwebapp = ["schema.sql", "templates/*.html", "templates/*/*.html", "static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

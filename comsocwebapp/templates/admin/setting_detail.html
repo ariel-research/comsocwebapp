@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ setting.title }}{% endblock %}
+{% block heading %}{{ setting.title }}{% endblock %}
+{% block content %}
+
+<p class="meta">
+  Format <strong>{{ setting.pref_format }}</strong> &middot;
+  budget limit <strong>{{ setting.budget_limit }}</strong> &middot;
+  status <span class="status {{ setting.status }}">{{ setting.status }}</span>
+</p>
+
+<form method="post" action="{{ url_for('admin.set_status', setting_id=setting.id) }}"
+      class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <select name="status">
+    {% for s in statuses %}
+      <option value="{{ s }}" {% if s == setting.status %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Set status</button>
+</form>
+
+<section>
+  <h2>Options ({{ options|length }})</h2>
+  <table>
+    <thead><tr><th>#</th><th>Name</th><th>Description</th><th>Cost</th><th></th></tr></thead>
+    <tbody>
+      {% for o in options %}
+      <tr>
+        <td>{{ o.id }}</td><td>{{ o.name }}</td>
+        <td>{{ o.description }}</td><td>{{ o.cost }}</td>
+        <td>
+          <form method="post" class="inline"
+                action="{{ url_for('admin.delete_option', setting_id=setting.id, option_id=o.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="danger">delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="hint">No options yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="post" action="{{ url_for('admin.add_option', setting_id=setting.id) }}"
+        class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input name="name" placeholder="Name" required>
+    <input name="description" placeholder="Description">
+    <input name="cost" type="number" value="0" min="0" placeholder="Cost">
+    <button type="submit">Add option</button>
+  </form>
+
+  <form method="post" enctype="multipart/form-data" class="row"
+        action="{{ url_for('admin.upload_options', setting_id=setting.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="file" name="file" accept=".csv">
+    <button type="submit">Bulk upload CSV (name, description, cost)</button>
+  </form>
+</section>
+
+<section>
+  <h2>Invitations</h2>
+  <form method="post" action="{{ url_for('admin.make_invitations', setting_id=setting.id) }}"
+        class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input name="count" type="number" value="1" min="1" max="10000">
+    <label class="checkbox"><input type="checkbox" name="is_generic" value="1"> generic (reusable)</label>
+    <button type="submit">Generate links</button>
+  </form>
+
+  <table>
+    <thead><tr><th>#</th><th>Link</th><th>Type</th><th>Used</th></tr></thead>
+    <tbody>
+      {% for i in invitations %}
+      <tr>
+        <td>{{ i.id }}</td>
+        <td class="mono">{{ url_for('auth.invite', token=i.token, _external=True) }}</td>
+        <td>{{ 'generic' if i.is_generic else 'personal' }}</td>
+        <td>{{ 'yes' if i.is_used else 'no' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="hint">No invitations yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Dummy users &amp; simulation</h2>
+  <form method="post" action="{{ url_for('admin.make_dummies', setting_id=setting.id) }}"
+        class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>count <input name="count" type="number" value="10" min="1" max="10000"></label>
+    <label>distribution
+      <select name="distribution">
+        {% for d in distributions %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>low <input name="low" type="number" value="0"></label>
+    <label>high <input name="high" type="number" value="100"></label>
+    <label>approval rate <input name="approval_rate" type="number" step="0.05"
+                                min="0" max="1" value="0.4"></label>
+    <label>seed <input name="seed" type="number" placeholder="random"></label>
+    <button type="submit">Generate dummy users</button>
+  </form>
+
+  <form method="post" action="{{ url_for('admin.drop_dummies', setting_id=setting.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="danger">Delete all dummy users</button>
+  </form>
+</section>
+
+<section>
+  <h2>Participation ({{ participants|length }} ballots cast)</h2>
+  <table>
+    <thead><tr><th>user id</th><th>email</th><th>kind</th></tr></thead>
+    <tbody>
+      {% for p in participants %}
+      <tr><td>{{ p.user_id }}</td><td>{{ p.email or '—' }}</td>
+          <td>{{ 'dummy' if p.is_dummy else 'real' }}</td></tr>
+      {% else %}
+      <tr><td colspan="3" class="hint">Nobody has voted yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{{ url_for('admin.export_preferences', setting_id=setting.id) }}">
+    Export anonymised preferences (CSV)</a></p>
+</section>
+
+<section>
+  <h2>Run a rule</h2>
+  <form method="post" action="{{ url_for('admin.run', setting_id=setting.id) }}" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>rule
+      <select name="rule_name">
+        {% for r in rule_names %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>scope
+      <select name="scope">
+        {% for s in scopes %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>committee size <input name="committee_size" type="number" value="1" min="1"></label>
+    <button type="submit">Run</button>
+  </form>
+</section>
+
+<section>
+  <h2>Execution logs</h2>
+  {% for log in logs %}
+    <article class="log">
+      <h3>#{{ log.id }} — {{ log.rule_name }}</h3>
+      <p><strong>Outcome:</strong> {{ log.outcome or '(none)' }}</p>
+      <pre>{{ log.run_log }}</pre>
+    </article>
+  {% else %}
+    <p class="hint">No rule has been run yet.</p>
+  {% endfor %}
+  <p><a href="{{ url_for('admin.export_logs', setting_id=setting.id) }}">
+    Export execution logs (CSV)</a></p>
+</section>
+{% endblock %}

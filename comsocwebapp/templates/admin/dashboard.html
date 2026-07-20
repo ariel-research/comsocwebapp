@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Admin dashboard{% endblock %}
+{% block heading %}Admin dashboard{% endblock %}
+{% block content %}
+<p><a class="button" href="{{ url_for('admin.create_setting') }}">New setting</a></p>
+
+{% if settings %}
+<table>
+  <thead>
+    <tr><th>#</th><th>Title</th><th>Format</th><th>Status</th>
+        <th>Options</th><th>Participants</th><th>Invitations</th></tr>
+  </thead>
+  <tbody>
+    {% for s in settings %}
+    <tr>
+      <td>{{ s.id }}</td>
+      <td><a href="{{ url_for('admin.setting_detail', setting_id=s.id) }}">{{ s.title }}</a></td>
+      <td>{{ s.pref_format }}</td>
+      <td><span class="status {{ s.status }}">{{ s.status }}</span></td>
+      <td>{{ s.option_count }}</td>
+      <td>{{ s.voter_count }}</td>
+      <td>{{ s.invitation_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="hint">No settings yet. Create one to get started.</p>
+{% endif %}
+{% endblock %}

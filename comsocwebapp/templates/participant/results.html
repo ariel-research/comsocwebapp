@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Results{% endblock %}
+{% block heading %}Results — {{ setting.title }}{% endblock %}
+{% block content %}
+{% if latest %}
+  <p><strong>Rule:</strong> {{ latest.rule_name }}</p>
+  <p><strong>Outcome:</strong>
+     {{ winners|join(', ') if winners else '(no option selected)' }}</p>
+
+  <h2>How this was decided</h2>
+  <pre>{{ latest.run_log }}</pre>
+{% else %}
+  <p class="hint">The rule has not been run yet. Come back later.</p>
+{% endif %}
+
+<h2>Your ballot</h2>
+<table>
+  <thead><tr><th>Option</th><th>Your value</th></tr></thead>
+  <tbody>
+    {% for row in my_ballot %}
+      <tr><td>{{ row.option_name }}</td><td>{{ row.value }}</td></tr>
+    {% else %}
+      <tr><td colspan="2" class="hint">You did not submit a ballot.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
