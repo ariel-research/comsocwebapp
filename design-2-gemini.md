@@ -1,0 +1,41 @@
+# Design Document: `comsocwebapp`
+
+## Overview
+`comsocwebapp` is a Python package designed to easily create web applications for computational social choice problems. A typical application focuses on a single social choice problem—such as fair allocation, voting, or participatory budgeting. 
+
+## Admin GUI
+
+The administrator dashboard provides a comprehensive GUI for configuring and managing the social choice process. 
+
+*   **Problem Definition:** The admin can define the setting, including the specific set of items to allocate, the candidates to choose from, or the projects and their associated costs. Admins can also bulk-upload these entities via CSV/JSON to handle large datasets.
+*   **Preference Formats:** The admin can define the exact format of user preferences, such as numerical values, numbers with a fixed sum, rankings, or approval ballots.
+*   **Invitations & Access Control:** Admins can generate email invitations for eligible participants (e.g., heirs, voters, citizens). These can be personalized links (sent individually for higher security) or generalized links (sent via email groups for lower-stakes applications). 
+*   **Rule Selection:** Admins can select one or more resolution rules from integrated Python libraries like `fairpyx`, `abcvoting`, or `pabutools`.
+*   **Dummy Users & Simulation:** To test and demonstrate rules, the admin can generate dummy users. While their preferences are generated randomly by default, the admin can manually modify them and control the random generation parameters, such as statistical distributions and upper/lower bounds. These dummy users can be deleted at any time.
+*   **Execution Scope:** The admin has the flexibility to run the selected rule exclusively with real users, exclusively with dummy users, or a mix of both for comparison purposes.
+*   **Audit & Transparency:** Once the rule completes execution, the admin can view both the final outcome and the complete execution log to fully understand how the outcome was derived.
+*   **Monitoring & Deadlines:** Admins have a real-time monitoring dashboard to track participation rates and the ability to set automated deadlines that lock the system.
+*   **Data Export:** Admins can export results, execution logs, and anonymized user preferences to standard formats (CSV, Excel).
+
+---
+
+## Participant GUI
+
+The participant experience is designed to be intuitive, transparent, and secure.
+
+*   **Onboarding & Authentication:** Participation begins by clicking an individual or generic invitation link. Users must then register using an email and password, or authenticate using an existing provider like Gmail, Facebook, or ORCID. If using a generalized link, the system enforces email verification to prevent double-voting.
+*   **Preference Elicitation:** Participants use a convenient GUI to express their preferences based on the ballot format determined by the admin (e.g., assigning values to items, ranking candidates, or approving/disapproving projects).
+*   **Results & Explainability:** After the admin runs the rule, participants can view the final results. Crucially, they are provided a personalized execution log corresponding to their specific ballot or allocation, alongside a plain-language explanation of why the results satisfy the guaranteed fairness criteria.
+*   **Modification & Receipts:** Participants can edit their preferences freely up until the admin's strict deadline. Upon final submission, they receive a receipt confirming their ballot was recorded accurately.
+*   **Accessibility:** The voting interface is fully responsive for mobile devices and adheres to WCAG accessibility standards.
+
+---
+
+## Technical Details
+
+The library prioritizes developer experience, security, and modularity.
+
+*   **Framework Foundation:** The library is based on Flask and its accompanying ecosystem. It is designed to be used similarly to Flask itself: developers simply import the package, create the app, and run it.
+*   **Boilerplate Reduction:** The library includes as much functionality as possible that is common across all social choice problems. Developers using this library only need to do the minimal work required to adapt it to their specific problem domain.
+*   **Reference Implementations:** The package will include working examples for different applications, such as fair item allocation, approval-based committee voting, and participatory budgeting.
+*   **Security Standards:** Built-in middleware automatically handles Cross-Site Request Forgery (CSRF) protection, input sanitization, and rate-limiting on authentication endpoints.
