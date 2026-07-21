@@ -39,3 +39,48 @@ The library prioritizes developer experience, security, and modularity.
 *   **Boilerplate Reduction:** The library includes as much functionality as possible that is common across all social choice problems. Developers using this library only need to do the minimal work required to adapt it to their specific problem domain.
 *   **Reference Implementations:** The package will include working examples for different applications, such as fair item allocation, approval-based committee voting, and participatory budgeting.
 *   **Security Standards:** Built-in middleware automatically handles Cross-Site Request Forgery (CSRF) protection, input sanitization, and rate-limiting on authentication endpoints.
+
+
+# Updates
+
+## Admin GUI updates
+
+1. When adding options, the number should start from 1 and be consecutive for each individual setting. 
+
+2. There should be an option to edit options in place (e.g. edit name, description, cost, etc.)
+
+3. Allow to view and edit the preferences of the dummy voters, as well as delete individual dummy voters.
+
+
+## Participant GUI updates
+
+1. Allow to register directly via gmail, github or orcid.
+
+
+## Code structure
+
+1. There should be a folder "adapters". The generic code from adapters.py should be in one file 'generic.py', and each library-specific code should be in its own file. Also, README.md to this folder, explaining what should be done to support new libraries.
+
+2. There should be a wrapper function for adding a setting and its options. It should insert the required info into the settings and options table. It should be used in the examples, instead of the direct DB calls.
+
+
+## Examples
+
+1. Each example should have a PORT constant, that can be set to a value different than 5000, so that several examples can  run simultaneously on the same server.
+
+2. Each example should have an individual configuration, that contains the database name, so that several examples can run simultaneously on the same db server.
+
+3. Example configuration should also contain the 'templates' and 'static' folders: the developer could either use the default templates, or generate new templates and use them instead.
+
+4. Re-running the example should create a new database only if the database does not exist; it should not drop and re-create the DB if it already exists. There should be a code comment explaining how to delete and re-create the existing database, if needed.
+
+5. Examples should use the wrapper function from above for seeding, rather than use direct DB calls.
+
+6. Add an example that would sit in a separate repository (including its own simplified installation guide).
+
+
+## Tests
+
+Prepare infrastructure and instructions for stress-testing, possible using `locust`. 
+The stress-test should verify that the application can support 1000 simultaneous users.
+
