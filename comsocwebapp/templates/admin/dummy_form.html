@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Edit dummy voter #{{ user_id }}{% endblock %}
+{% block heading %}Dummy voter #{{ user_id }} — {{ setting.title }}{% endblock %}
+{% block content %}
+
+<p class="hint">
+  {% if setting.pref_format == 'approval' %}
+    1 approves the option, 0 does not.
+  {% elif setting.pref_format == 'ranking' %}
+    1 is the favourite, then 2, 3, …; 0 means unranked.
+  {% elif setting.pref_format == 'budget' %}
+    Currency assigned to each project (budget limit {{ setting.budget_limit }}).
+  {% else %}
+    The value this voter assigns to each option.
+  {% endif %}
+  These are simulated preferences — real participants' ballots can only be
+  changed by the participants themselves.
+</p>
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <table>
+    <thead><tr><th>#</th><th>Option</th>
+      {% if setting.pref_format == 'budget' %}<th>Cost</th>{% endif %}
+      <th>Value</th></tr></thead>
+    <tbody>
+      {% for p in preferences %}
+      <tr>
+        <td>{{ p.position }}</td>
+        <td><label for="option_{{ p.option_id }}">{{ p.option_name }}</label></td>
+        {% if setting.pref_format == 'budget' %}<td>{{ p.cost }}</td>{% endif %}
+        <td><input type="number" id="option_{{ p.option_id }}"
+                   name="option_{{ p.option_id }}" value="{{ p.value or 0 }}"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button type="submit">Save preferences</button>
+  <a href="{{ url_for('admin.list_dummies', setting_id=setting.id) }}">Cancel</a>
+</form>
+{% endblock %}

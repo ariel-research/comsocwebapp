@@ -18,24 +18,56 @@ from datetime import datetime, timezone
 
 import click
 from flask import Flask
+from jinja2 import ChoiceLoader, FileSystemLoader
 
-from . import adapters, admin, auth, db, dummy, participant, rules, security
+from . import (
+    adapters, admin, auth, db, dummy, oauth, participant, rules, security,
+    setting,
+)
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
-__all__ = ["create_app", "adapters", "admin", "auth", "db", "dummy",
-           "participant", "rules", "security", "__version__"]
+__all__ = ["create_app", "adapters", "admin", "auth", "db", "dummy", "oauth",
+           "participant", "rules", "security", "setting", "__version__"]
+
+#: Provider credentials are read from the environment when present, so a
+#: deployment can enable Google/GitHub/ORCID sign-in without touching code.
+_OAUTH_ENV_KEYS = tuple(
+    f"OAUTH_{provider.upper()}_CLIENT_{part}"
+    for provider in oauth.PROVIDERS
+    for part in ("ID", "SECRET")
+)
 
 
-def create_app(test_config: dict | None = None, instance_path: str | None = None) -> Flask:
+def create_app(test_config: dict | None = None, instance_path: str | None = None,
+               template_folder: str | None = None,
+               static_folder: str | None = None) -> Flask:
     """Application factory.
 
     :param test_config: config values overriding the defaults (tests pass
         ``{"TESTING": True, "DATABASE": ":memory:"}``).
     :param instance_path: where ``comsocwebapp.sqlite`` and the instance
         config live; defaults to Flask's ``<cwd>/instance``.
+    :param template_folder: an application's own templates.  They *override*
+        the package's: any file not found there falls back to the built-in
+        one, so an application can restyle a single page without copying the
+        rest.
+    :param static_folder: an application's own static files, served at
+        ``/static`` in place of the package's.
+
+    Both folder arguments may also be given as the config keys
+    ``TEMPLATE_FOLDER`` / ``STATIC_FOLDER``, which is what the examples do.
     """
-    app = Flask(__name__, instance_relative_config=True, instance_path=instance_path)
+    config = dict(test_config or {})
+    template_folder = template_folder or config.pop("TEMPLATE_FOLDER", None)
+    static_folder = static_folder or config.pop("STATIC_FOLDER", None)
+
+    app = Flask(
+        __name__,
+        instance_relative_config=True,
+        instance_path=instance_path,
+        static_folder=static_folder or "static",
+    )
     app.config.from_mapping(
         # Overridden in production via COMSOCWEBAPP_SECRET_KEY; the dev default
         # exists only so that `flask run` works out of the box.
@@ -46,17 +78,26 @@ def create_app(test_config: dict | None = None, instance_path: str | None = None
         ),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        **{key: os.environ[key] for key in _OAUTH_ENV_KEYS if key in os.environ},
     )
 
     if test_config is None:
         app.config.from_pyfile("config.py", silent=True)
     else:
-        app.config.from_mapping(test_config)
+        app.config.from_mapping(config)
+
+    if template_folder:
+        # The application's folder is searched first, the package's second.
+        app.jinja_loader = ChoiceLoader([
+            FileSystemLoader(template_folder),
+            app.jinja_loader,
+        ])
 
     os.makedirs(app.instance_path, exist_ok=True)
 
     db.init_app(app)
     security.init_app(app)
+    oauth.init_app(app)
     app.register_blueprint(auth.bp)
     app.register_blueprint(admin.bp)
     app.register_blueprint(participant.bp)

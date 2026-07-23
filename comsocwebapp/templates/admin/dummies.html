@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Dummy voters{% endblock %}
+{% block heading %}Dummy voters — {{ setting.title }}{% endblock %}
+{% block content %}
+
+<p class="meta">{{ ballots|length }} dummy voters ·
+   format <strong>{{ setting.pref_format }}</strong>
+   {% if setting.pref_format == 'budget' %}
+     · budget limit {{ setting.budget_limit }}
+   {% endif %}
+</p>
+<p><a href="{{ url_for('admin.setting_detail', setting_id=setting.id) }}">
+   ← back to the setting</a></p>
+
+{% if ballots %}
+<table>
+  <thead>
+    <tr>
+      <th>user</th>
+      {% for o in options %}<th title="{{ o.name }}">{{ o.position }}. {{ o.name }}</th>{% endfor %}
+      <th>total</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ballot in ballots %}
+    <tr>
+      <td>#{{ ballot.user_id }}</td>
+      {% for o in options %}
+        <td>{{ ballot.ballot.get(o.id) if ballot.ballot.get(o.id) is not none else '—' }}</td>
+      {% endfor %}
+      <td>{{ ballot.total }}</td>
+      <td>
+        <a href="{{ url_for('admin.edit_dummy', setting_id=setting.id,
+                            user_id=ballot.user_id) }}">edit</a>
+        <form method="post" class="inline"
+              action="{{ url_for('admin.delete_dummy', setting_id=setting.id,
+                                 user_id=ballot.user_id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="danger">delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="hint">This setting has no dummy voters yet. Generate some from the
+   setting page.</p>
+{% endif %}
+{% endblock %}

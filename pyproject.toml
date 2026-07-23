@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "comsocwebapp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Flask boilerplate for computational social choice web applications"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,8 +25,12 @@ dependencies = ["Flask>=3.0"]
 allocation = ["fairpyx"]
 voting = ["abcvoting"]
 budgeting = ["pabutools"]
-all = ["fairpyx", "abcvoting", "pabutools"]
-dev = ["pytest", "pytest-cov"]
+# Registration/login through Google, GitHub and ORCID.
+oauth = ["Authlib>=1.3", "requests"]
+all = ["fairpyx", "abcvoting", "pabutools", "Authlib>=1.3", "requests"]
+# Load testing (see stress/README.md) and the test suite.
+stress = ["locust", "waitress"]
+dev = ["pytest", "pytest-cov", "locust", "waitress"]
 
 [project.urls]
 Homepage = "https://github.com/erelsgl/comsocwebapp"
@@ -35,7 +39,8 @@ Homepage = "https://github.com/erelsgl/comsocwebapp"
 include = ["comsocwebapp*"]
 
 [tool.setuptools.package-data]
-comsocwebapp = ["schema.sql", "templates/*.html", "templates/*/*.html", "static/*"]
+comsocwebapp = ["schema.sql", "templates/*.html", "templates/*/*.html",
+                "static/*", "adapters/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

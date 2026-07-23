@@ -11,6 +11,9 @@
                            autocomplete="new-password"></label>
     <button type="submit">Register and vote</button>
   </form>
+
+  {% include "auth/providers.html" %}
+
   {% if invitation.is_generic %}
     <p class="hint">This is a shared invitation link: each email address may
       register only once.</p>

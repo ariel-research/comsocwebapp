@@ -9,13 +9,15 @@ from flask import (
     Blueprint, current_app, flash, redirect, render_template, request, url_for, Response,
 )
 
-from . import adapters, db, dummy, rules
+from . import adapters, db, dummy, rules, setting as setting_api
 from .auth import admin_required, create_invitations
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
-PREF_FORMATS = ("approval", "ranking", "points", "budget")
-STATUSES = ("draft", "open", "closed")
+# Re-exported from comsocwebapp.setting so that the whole package agrees on
+# what the enumerated columns may contain.
+PREF_FORMATS = setting_api.PREF_FORMATS
+STATUSES = setting_api.STATUSES
 
 
 # --------------------------------------------------------------------------
@@ -52,16 +54,12 @@ def create_setting():
         pref_format = request.form.get("pref_format") or "approval"
         budget_limit = request.form.get("budget_limit") or "0"
 
-        if not title:
-            flash("A title is required.", "error")
-        elif pref_format not in PREF_FORMATS:
-            flash(f"Preference format must be one of {', '.join(PREF_FORMATS)}.", "error")
+        try:
+            setting_id = setting_api.create_setting(
+                title, pref_format, budget_limit=int(budget_limit or 0))
+        except ValueError as error:
+            flash(str(error), "error")
         else:
-            setting_id = db.insert_returning_id(
-                "INSERT INTO settings (title, pref_format, status, budget_limit)"
-                " VALUES (?, ?, 'draft', ?)",
-                (title, pref_format, int(budget_limit or 0)),
-            )
             return redirect(url_for("admin.setting_detail", setting_id=setting_id))
 
     return render_template("admin/setting_form.html", pref_formats=PREF_FORMATS)
@@ -100,12 +98,12 @@ def setting_detail(setting_id: int):
 @admin_required
 def set_status(setting_id: int):
     """Open or lock the ballot ('Monitoring & Deadlines' in design.md)."""
-    status = request.form.get("status")
-    if status not in STATUSES:
-        flash(f"Status must be one of {', '.join(STATUSES)}.", "error")
+    try:
+        setting_api.update_setting(setting_id, status=request.form.get("status"))
+    except ValueError as error:
+        flash(str(error), "error")
     else:
-        db.execute("UPDATE settings SET status = ? WHERE id = ?", (status, setting_id))
-        flash(f"Setting is now '{status}'.", "success")
+        flash(f"Setting is now '{request.form.get('status')}'.", "success")
     return redirect(url_for("admin.setting_detail", setting_id=setting_id))
 
 
@@ -116,17 +114,45 @@ def set_status(setting_id: int):
 @bp.route("/settings/<int:setting_id>/options", methods=("POST",))
 @admin_required
 def add_option(setting_id: int):
-    name = (request.form.get("name") or "").strip()
-    if not name:
-        flash("An option needs a name.", "error")
-    else:
-        db.execute(
-            "INSERT INTO options (setting_id, name, description, cost)"
-            " VALUES (?, ?, ?, ?)",
-            (setting_id, name, (request.form.get("description") or "").strip(),
-             int(request.form.get("cost") or 0)),
+    """Append an option; it gets the next free number within this setting."""
+    try:
+        setting_api.add_option(
+            setting_id,
+            request.form.get("name") or "",
+            request.form.get("description") or "",
+            int(request.form.get("cost") or 0),
         )
+    except ValueError as error:
+        flash(str(error), "error")
     return redirect(url_for("admin.setting_detail", setting_id=setting_id))
+
+
+@bp.route("/settings/<int:setting_id>/options/<int:option_id>/edit",
+          methods=("GET", "POST"))
+@admin_required
+def edit_option(setting_id: int, option_id: int):
+    """Edit an option in place, keeping its number and any ballots cast on it."""
+    option = setting_api.get_option(option_id)
+    if option is None or option["setting_id"] != setting_id:
+        return render_template("admin/not_found.html"), 404
+    setting = adapters.fetch_setting(setting_id)
+
+    if request.method == "POST":
+        try:
+            setting_api.update_option(
+                option_id,
+                name=request.form.get("name") or "",
+                description=request.form.get("description") or "",
+                cost=int(request.form.get("cost") or 0),
+            )
+        except ValueError as error:
+            flash(str(error), "error")
+            return render_template("admin/option_form.html", setting=setting,
+                                   option=option)
+        flash(f"Option {option['position']} updated.", "success")
+        return redirect(url_for("admin.setting_detail", setting_id=setting_id))
+
+    return render_template("admin/option_form.html", setting=setting, option=option)
 
 
 @bp.route("/settings/<int:setting_id>/options/upload", methods=("POST",))
@@ -139,18 +165,10 @@ def upload_options(setting_id: int):
         return redirect(url_for("admin.setting_detail", setting_id=setting_id))
 
     text = io.StringIO(uploaded.read().decode("utf-8-sig"))
-    rows = [
-        (setting_id, (row.get("name") or "").strip(),
-         (row.get("description") or "").strip(), int(row.get("cost") or 0))
-        for row in csv.DictReader(text)
-        if (row.get("name") or "").strip()
-    ]
-    if rows:
-        db.execute_many(
-            "INSERT INTO options (setting_id, name, description, cost)"
-            " VALUES (?, ?, ?, ?)",
-            rows,
-        )
+    rows = [row for row in csv.DictReader(text) if (row.get("name") or "").strip()]
+    # add_options numbers each new option, continuing from whatever is already
+    # in the setting.
+    setting_api.add_options(setting_id, rows)
     flash(f"Imported {len(rows)} options.", "success")
     return redirect(url_for("admin.setting_detail", setting_id=setting_id))
 
@@ -158,10 +176,10 @@ def upload_options(setting_id: int):
 @bp.route("/settings/<int:setting_id>/options/<int:option_id>/delete", methods=("POST",))
 @admin_required
 def delete_option(setting_id: int, option_id: int):
-    db.execute("DELETE FROM preferences WHERE option_id = ?", (option_id,), commit=False)
-    db.execute("DELETE FROM options WHERE id = ? AND setting_id = ?",
-               (option_id, setting_id), commit=False)
-    db.get_db().commit()
+    """Delete an option; the remaining ones are renumbered 1..n."""
+    option = setting_api.get_option(option_id)
+    if option is not None and option["setting_id"] == setting_id:
+        setting_api.delete_option(option_id)
     return redirect(url_for("admin.setting_detail", setting_id=setting_id))
 
 
@@ -202,6 +220,75 @@ def make_dummies(setting_id: int):
     except ValueError as error:
         flash(str(error), "error")
     return redirect(url_for("admin.setting_detail", setting_id=setting_id))
+
+
+@bp.route("/settings/<int:setting_id>/dummies/list")
+@admin_required
+def list_dummies(setting_id: int):
+    """Show every dummy voter of this setting with the ballot it carries."""
+    setting = adapters.fetch_setting(setting_id)
+    if setting is None:
+        return render_template("admin/not_found.html"), 404
+
+    options = adapters.fetch_options(setting_id)
+    ballots = []
+    for voter in adapters.fetch_participants(setting_id, adapters.SCOPE_DUMMY):
+        values = {
+            row["option_id"]: row["value"]
+            for row in adapters.fetch_user_preferences(voter["user_id"], setting_id)
+        }
+        # Keyed "ballot" not "values": in Jinja, ballot.values would resolve to
+        # the dict's .values() method rather than to our data.
+        ballots.append({"user_id": voter["user_id"], "ballot": values,
+                        "total": sum(value or 0 for value in values.values())})
+
+    return render_template("admin/dummies.html", setting=setting,
+                           options=options, ballots=ballots)
+
+
+@bp.route("/settings/<int:setting_id>/dummies/<int:user_id>/edit",
+          methods=("GET", "POST"))
+@admin_required
+def edit_dummy(setting_id: int, user_id: int):
+    """Hand-edit one dummy voter's preferences.
+
+    Only dummy users may be edited here: a real participant's ballot is theirs
+    alone, and an admin must never be able to rewrite it.
+    """
+    setting = adapters.fetch_setting(setting_id)
+    voter = db.query_one("SELECT id, is_dummy FROM users WHERE id = ?", (user_id,))
+    if setting is None or voter is None or not voter["is_dummy"]:
+        return render_template("admin/not_found.html"), 404
+
+    if request.method == "POST":
+        submitted = {}
+        for option in adapters.fetch_options(setting_id):
+            raw = (request.form.get(f"option_{option['id']}") or "0").strip() or "0"
+            try:
+                submitted[option["id"]] = int(raw)
+            except ValueError:
+                flash(f"'{raw}' is not a whole number.", "error")
+                submitted = None
+                break
+        if submitted is not None:
+            dummy.set_dummy_preferences(user_id, setting_id, submitted)
+            flash(f"Updated the ballot of dummy user {user_id}.", "success")
+            return redirect(url_for("admin.list_dummies", setting_id=setting_id))
+
+    return render_template(
+        "admin/dummy_form.html", setting=setting, user_id=user_id,
+        preferences=adapters.fetch_user_preferences(user_id, setting_id))
+
+
+@bp.route("/settings/<int:setting_id>/dummies/<int:user_id>/delete", methods=("POST",))
+@admin_required
+def delete_dummy(setting_id: int, user_id: int):
+    """Delete a single dummy voter and its ballot."""
+    if dummy.delete_dummy_user(user_id):
+        flash(f"Deleted dummy user {user_id}.", "success")
+    else:
+        flash("That user is not a dummy user.", "error")
+    return redirect(url_for("admin.list_dummies", setting_id=setting_id))
 
 
 @bp.route("/settings/<int:setting_id>/dummies/delete", methods=("POST",))
@@ -253,10 +340,11 @@ def export_preferences(setting_id: int):
     rows = adapters.fetch_preference_rows(setting_id)
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(["user_id", "is_dummy", "option_id", "option_name", "value"])
+    writer.writerow(["user_id", "is_dummy", "option_id", "option_number",
+                     "option_name", "value"])
     for row in rows:
         writer.writerow([row["user_id"], row["is_dummy"], row["option_id"],
-                         row["option_name"], row["value"]])
+                         row["option_position"], row["option_name"], row["value"]])
     return Response(
         buffer.getvalue(),
         mimetype="text/csv",

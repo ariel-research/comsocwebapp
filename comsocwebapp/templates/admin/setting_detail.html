@@ -27,9 +27,11 @@
     <tbody>
       {% for o in options %}
       <tr>
-        <td>{{ o.id }}</td><td>{{ o.name }}</td>
+        {# The number shown is the per-setting position, not the global id. #}
+        <td>{{ o.position }}</td><td>{{ o.name }}</td>
         <td>{{ o.description }}</td><td>{{ o.cost }}</td>
         <td>
+          <a href="{{ url_for('admin.edit_option', setting_id=setting.id, option_id=o.id) }}">edit</a>
           <form method="post" class="inline"
                 action="{{ url_for('admin.delete_option', setting_id=setting.id, option_id=o.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -42,6 +44,8 @@
       {% endfor %}
     </tbody>
   </table>
+  <p class="hint">Options are numbered 1…{{ options|length }} within this
+     setting; deleting one renumbers the rest.</p>
 
   <form method="post" action="{{ url_for('admin.add_option', setting_id=setting.id) }}"
         class="row">
@@ -105,6 +109,11 @@
     <label>seed <input name="seed" type="number" placeholder="random"></label>
     <button type="submit">Generate dummy users</button>
   </form>
+
+  <p>
+    <a class="button" href="{{ url_for('admin.list_dummies', setting_id=setting.id) }}">
+      View / edit dummy voters</a>
+  </p>
 
   <form method="post" action="{{ url_for('admin.drop_dummies', setting_id=setting.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

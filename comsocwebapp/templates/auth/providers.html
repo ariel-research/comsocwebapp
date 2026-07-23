@@ -1,0 +1,14 @@
+{# Sign-in buttons for the configured OAuth providers.
+   Renders nothing at all when none are configured, so a deployment that only
+   wants email + password sees no trace of the feature. #}
+{% if providers %}
+  <div class="providers">
+    <p class="hint">{{ intro | default('Or continue with:') }}</p>
+    {% for provider in providers %}
+      <a class="button provider {{ provider.name }}"
+         href="{{ url_for('auth.oauth_login', provider=provider.name,
+                          token=token | default('', true)) }}">
+        Continue with {{ provider.label }}</a>
+    {% endfor %}
+  </div>
+{% endif %}

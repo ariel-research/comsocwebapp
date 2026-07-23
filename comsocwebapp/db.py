@@ -23,11 +23,14 @@ from typing import Any, Iterable, Sequence
 
 import click
 from flask import current_app, g
+from flask.cli import with_appcontext
 
 __all__ = [
     "get_db",
     "close_db",
     "init_db",
+    "ensure_db",
+    "schema_exists",
     "query_all",
     "query_one",
     "execute",
@@ -61,13 +64,25 @@ def get_db() -> sqlite3.Connection:
     request shares a single transaction and a single commit.
     """
     if "db" not in g:
-        connection = sqlite3.connect(current_app.config["DATABASE"])
+        location = current_app.config["DATABASE"]
+        connection = sqlite3.connect(
+            location,
+            # Under load several requests wait on the single writer instead of
+            # failing immediately with "database is locked".
+            timeout=current_app.config.get("DATABASE_TIMEOUT", 15.0),
+        )
         # Rows behave like dicts *and* like tuples, which keeps the adapter
         # layer free of positional indexing.
         connection.row_factory = sqlite3.Row
         # SQLite ignores FOREIGN KEY clauses unless asked not to.  Other
         # engines enforce them unconditionally, so this is a no-op elsewhere.
         connection.execute("PRAGMA foreign_keys = ON")
+        if current_app.config.get("SQLITE_WAL", True) and location != ":memory:":
+            # Write-ahead logging lets readers run while a write is in flight,
+            # which is what makes a few hundred concurrent voters viable on
+            # SQLite.  It is a durable property of the file, so setting it on
+            # every connection is cheap and idempotent.
+            connection.execute("PRAGMA journal_mode = WAL")
         g.db = connection
     return g.db
 
@@ -191,7 +206,8 @@ def upsert_preference(user_id: int, setting_id: int, option_id: int, value: int)
 def init_db() -> None:
     """Drop and recreate every table from ``schema.sql``.
 
-    Destructive by design: this is the "start a fresh event" command.
+    Destructive by design: this is the "start a fresh event" command.  Call
+    :func:`ensure_db` instead to keep whatever is already there.
     """
     connection = get_db()
     with current_app.open_resource("schema.sql") as handle:
@@ -199,11 +215,47 @@ def init_db() -> None:
     connection.commit()
 
 
-@click.command("init-db")
-def init_db_command() -> None:
-    """flask init-db -- create the tables, erasing any existing data."""
+def schema_exists() -> bool:
+    """Return True if the schema has already been created.
+
+    Probing with a trivial SELECT is the portable test: ``sqlite_master`` is
+    SQLite-only, ``information_schema`` does not exist on SQLite or Oracle, and
+    every engine raises when a table is missing.
+    """
+    try:
+        get_db().execute("SELECT id FROM settings WHERE 1 = 0").fetchall()
+    except Exception:
+        return False
+    return True
+
+
+def ensure_db() -> bool:
+    """Create the schema only if it is missing.  True if it was created.
+
+    This is what long-lived applications and the examples call on start-up:
+    re-running them must never discard the data collected so far.
+    """
+    if schema_exists():
+        return False
     init_db()
-    click.echo(f"Initialised the database at {current_app.config['DATABASE']}.")
+    return True
+
+
+@click.command("init-db")
+@click.option("--if-missing", is_flag=True,
+              help="Keep an existing database instead of recreating it.")
+@with_appcontext
+def init_db_command(if_missing: bool) -> None:
+    """flask init-db -- create the tables, erasing any existing data."""
+    location = current_app.config["DATABASE"]
+    if if_missing:
+        if ensure_db():
+            click.echo(f"Initialised the database at {location}.")
+        else:
+            click.echo(f"Kept the existing database at {location}.")
+        return
+    init_db()
+    click.echo(f"Initialised the database at {location}.")
 
 
 def init_app(app) -> None:

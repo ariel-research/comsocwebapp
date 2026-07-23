@@ -1,0 +1,36 @@
+{# An application's own version of the package's participant/index.html.
+
+   It is found first because create_app() was given
+   TEMPLATE_FOLDER = examples/templates-fa.  Every other page of the
+   application still comes from comsocwebapp/templates/ -- including
+   "base.html", which this file extends. #}
+{% extends "base.html" %}
+{% block title %}Dividing the estate{% endblock %}
+{% block heading %}Dividing the estate{% endblock %}
+{% block content %}
+
+<p>Welcome. You are one of the heirs. Say how much each item is worth
+   <em>to you</em> — the numbers are yours alone, and are never shown to the
+   other heirs.</p>
+<p class="hint">The allocation is then computed so that nobody envies anyone
+   else's bundle more than a single item's worth.</p>
+
+{% if settings %}
+<ul class="cards">
+  {% for s in settings %}
+  <li>
+    <h2>{{ s.title }}</h2>
+    {% if g.user %}
+      <a class="button" href="{{ url_for('participant.ballot', setting_id=s.id) }}">
+        Value the items</a>
+      <a href="{{ url_for('participant.results', setting_id=s.id) }}">Results</a>
+    {% else %}
+      <a class="button" href="{{ url_for('auth.login') }}">Log in to take part</a>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="hint">Nothing is open for valuation at the moment.</p>
+{% endif %}
+{% endblock %}

@@ -22,12 +22,13 @@
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <table>
-    <thead><tr><th>Option</th><th>Description</th>
+    <thead><tr><th>#</th><th>Option</th><th>Description</th>
       {% if setting.pref_format == 'budget' %}<th>Cost</th>{% endif %}
       <th>Your answer</th></tr></thead>
     <tbody>
       {% for o in options %}
       <tr>
+        <td>{{ o.position }}</td>
         <td><label for="option_{{ o.id }}">{{ o.name }}</label></td>
         <td>{{ o.description }}</td>
         {% if setting.pref_format == 'budget' %}<td>{{ o.cost }}</td>{% endif %}

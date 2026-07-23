@@ -22,18 +22,28 @@ DROP TABLE IF EXISTS settings;
 DROP TABLE IF EXISTS users;
 
 -- 1. users -- administrators and participants, real and dummy.
+--    auth_provider / auth_subject identify a user who registered through an
+--    external provider ('google', 'github', 'orcid') instead of a password.
+--    They are NULL for password accounts and for dummy users.  ORCID does not
+--    release an email address, which is why the provider's own subject id --
+--    not the email -- is the identity we key on.
 CREATE TABLE users (
     id            INTEGER PRIMARY KEY,
     email         VARCHAR(255),
     password_hash VARCHAR(255),
     is_admin      INTEGER   NOT NULL DEFAULT 0,
     is_dummy      INTEGER   NOT NULL DEFAULT 0,
-    created_at    TIMESTAMP
+    created_at    TIMESTAMP,
+    auth_provider VARCHAR(50),
+    auth_subject  VARCHAR(255)
 );
 
 -- Email is unique only among real users; dummy users carry NULL emails and
 -- most engines allow arbitrarily many NULLs in a UNIQUE index.
 CREATE UNIQUE INDEX ux_users_email ON users (email);
+
+-- One account per (provider, subject) pair.
+CREATE UNIQUE INDEX ux_users_provider ON users (auth_provider, auth_subject);
 
 -- 2. settings -- one row per social-choice problem instance.
 CREATE TABLE settings (
@@ -45,9 +55,13 @@ CREATE TABLE settings (
 );
 
 -- 3. options -- items, candidates or projects belonging to a setting.
+--    `position` is the number shown in the GUI: 1, 2, 3, ... within each
+--    setting, independently of the global `id`.  comsocwebapp.setting keeps it
+--    consecutive, renumbering the survivors whenever an option is deleted.
 CREATE TABLE options (
     id          INTEGER PRIMARY KEY,
     setting_id  INTEGER      NOT NULL,
+    position    INTEGER      NOT NULL DEFAULT 1,
     name        VARCHAR(255) NOT NULL,
     description VARCHAR(1000),
     cost        INTEGER      NOT NULL DEFAULT 0,
@@ -55,6 +69,7 @@ CREATE TABLE options (
 );
 
 CREATE INDEX ix_options_setting ON options (setting_id);
+CREATE UNIQUE INDEX ux_options_position ON options (setting_id, position);
 
 -- 4. invitations -- access-control tokens.
 CREATE TABLE invitations (

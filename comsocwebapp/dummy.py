@@ -19,7 +19,8 @@ import random
 
 from . import adapters, db
 
-__all__ = ["generate_preferences", "generate_dummy_users", "delete_dummy_users"]
+__all__ = ["generate_preferences", "generate_dummy_users", "delete_dummy_user",
+           "delete_dummy_users", "set_dummy_preferences"]
 
 DISTRIBUTIONS = ("uniform", "normal", "exponential")
 
@@ -119,6 +120,36 @@ def generate_dummy_users(setting_id: int, count: int, *,
 
     db.get_db().commit()
     return created
+
+
+def set_dummy_preferences(user_id: int, setting_id: int,
+                          values: dict[int, int]) -> None:
+    """Overwrite one dummy user's ballot with hand-picked values.
+
+    Refuses to touch a real participant: an admin may edit simulated ballots,
+    never someone else's actual vote.
+    """
+    user = db.query_one("SELECT id, is_dummy FROM users WHERE id = ?", (user_id,))
+    if user is None or not user["is_dummy"]:
+        raise ValueError(f"User {user_id} is not a dummy user.")
+    for option_id, value in values.items():
+        db.upsert_preference(user_id, setting_id, option_id, int(value))
+
+
+def delete_dummy_user(user_id: int) -> bool:
+    """Delete one dummy user and its preferences.  False if it is not a dummy.
+
+    Preferences go first so the foreign key from ``preferences.user_id`` never
+    dangles.
+    """
+    user = db.query_one("SELECT id, is_dummy FROM users WHERE id = ?", (user_id,))
+    if user is None or not user["is_dummy"]:
+        return False
+    db.execute("DELETE FROM preferences WHERE user_id = ?", (user_id,), commit=False)
+    db.execute("DELETE FROM users WHERE id = ? AND is_dummy = 1", (user_id,),
+               commit=False)
+    db.get_db().commit()
+    return True
 
 
 def delete_dummy_users(setting_id: int) -> int:

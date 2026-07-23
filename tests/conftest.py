@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from comsocwebapp import auth, create_app, db
+from comsocwebapp import auth, create_app, db, setting as setting_api
 
 
 @pytest.fixture
@@ -34,19 +34,13 @@ def client(app):
 def setting(app):
     """An open approval-format setting with three options."""
     with app.app_context():
-        setting_id = db.insert_returning_id(
-            "INSERT INTO settings (title, pref_format, status, budget_limit)"
-            " VALUES (?, ?, ?, ?)",
-            ("Test election", "approval", "open", 100),
+        setting_id = setting_api.create_setting(
+            "Test election", "approval", budget_limit=100, status="open",
+            options=[("Alpha", "", 30), ("Beta", "", 50), ("Gamma", "", 60)],
         )
-        option_ids = [
-            db.insert_returning_id(
-                "INSERT INTO options (setting_id, name, description, cost)"
-                " VALUES (?, ?, ?, ?)",
-                (setting_id, name, "", cost),
-            )
-            for name, cost in (("Alpha", 30), ("Beta", 50), ("Gamma", 60))
-        ]
+        option_ids = [o["id"] for o in db.query_all(
+            "SELECT id FROM options WHERE setting_id = ? ORDER BY position",
+            (setting_id,))]
     return {"id": setting_id, "option_ids": option_ids}
 
 

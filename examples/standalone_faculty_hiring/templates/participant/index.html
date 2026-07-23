@@ -1,0 +1,34 @@
+{# This application's own landing page.
+
+   It is found before the package's participant/index.html because CONFIG sets
+   TEMPLATE_FOLDER to this folder.  "base.html" is not overridden here, so it
+   still comes from comsocwebapp. #}
+{% extends "base.html" %}
+{% block title %}Faculty hiring{% endblock %}
+{% block heading %}Faculty hiring 2026{% endblock %}
+{% block content %}
+
+<p>Approve every candidate you consider hirable — as many or as few as you
+   like. Approving more candidates never hurts the ones you approved first.</p>
+<p class="hint">The three most-approved candidates are shortlisted. After the
+   chair runs the rule, you can read the full count for every candidate.</p>
+
+{% if settings %}
+<ul class="cards">
+  {% for s in settings %}
+  <li>
+    <h2>{{ s.title }}</h2>
+    {% if g.user %}
+      <a class="button" href="{{ url_for('participant.ballot', setting_id=s.id) }}">
+        Approve candidates</a>
+      <a href="{{ url_for('participant.results', setting_id=s.id) }}">Shortlist</a>
+    {% else %}
+      <a class="button" href="{{ url_for('auth.login') }}">Log in to vote</a>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="hint">Voting is not open at the moment.</p>
+{% endif %}
+{% endblock %}

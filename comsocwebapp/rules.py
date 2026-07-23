@@ -7,8 +7,10 @@ admin and the participants can audit how the outcome was derived
 (design.md, "Audit & Transparency").
 
 Three rules are built in and depend on nothing but the standard library, so a
-fresh install can run end-to-end.  The wrappers for ``fairpyx``, ``abcvoting``
-and ``pabutools`` register themselves only when their library is importable.
+fresh install can run end-to-end.  The rules backed by ``fairpyx``,
+``abcvoting`` and ``pabutools`` live next to their data bridges in
+:mod:`comsocwebapp.adapters` and are registered from there -- only when the
+library in question is importable.
 """
 
 from __future__ import annotations
@@ -150,69 +152,11 @@ def greedy_budget(setting_id: int, scope: str = adapters.SCOPE_ALL, **_) -> Rule
 
 
 # --------------------------------------------------------------------------
-# Library-backed rules -- registered only if the library is installed
+# Library-backed rules
 # --------------------------------------------------------------------------
+# Each supported solver library registers its own rules from its adapter
+# module, so that everything specific to a library lives in one file.  Missing
+# libraries are skipped: the rule list always matches what this installation
+# can actually run.
 
-def _register_optional_rules() -> None:
-    try:  # fair item allocation
-        import fairpyx  # noqa: F401,PLC0415
-
-        @register_rule("fairpyx_round_robin")
-        def fairpyx_round_robin(setting_id: int, scope: str = adapters.SCOPE_ALL, **_):
-            from fairpyx.algorithms import round_robin  # noqa: PLC0415
-            from fairpyx import divide  # noqa: PLC0415
-
-            instance = adapters.to_fairpyx_instance(setting_id, scope)
-            allocation = divide(round_robin, instance)
-            log = ["Rule: fairpyx round-robin.",
-                   f"Agents: {len(allocation)}.", "Allocation:"]
-            log += [f"  agent {agent}: {', '.join(map(str, bundle))}"
-                    for agent, bundle in allocation.items()]
-            outcome = [f"{agent}:{'|'.join(map(str, bundle))}"
-                       for agent, bundle in allocation.items()]
-            return RuleResult(outcome=outcome, log_lines=log)
-    except ImportError:
-        pass
-
-    try:  # approval-based committee voting
-        import abcvoting  # noqa: F401,PLC0415
-
-        @register_rule("abcvoting_pav")
-        def abcvoting_pav(setting_id: int, scope: str = adapters.SCOPE_ALL,
-                          committee_size: int = 3, **_):
-            from abcvoting import abcrules  # noqa: PLC0415
-
-            profile, option_ids = adapters.to_abcvoting_profile(setting_id, scope)
-            committees = abcrules.compute("pav", profile, committeesize=committee_size)
-            winners = [option_ids[index] for index in sorted(committees[0])]
-            log = ["Rule: abcvoting Proportional Approval Voting (PAV).",
-                   f"Voters: {len(profile)}, candidates: {len(option_ids)},"
-                   f" committee size: {committee_size}.",
-                   f"Tied optimal committees found: {len(committees)}.",
-                   "Elected: " + ", ".join(str(w) for w in winners)]
-            return RuleResult(outcome=winners, log_lines=log)
-    except ImportError:
-        pass
-
-    try:  # participatory budgeting
-        import pabutools  # noqa: F401,PLC0415
-
-        @register_rule("pabutools_mes")
-        def pabutools_mes(setting_id: int, scope: str = adapters.SCOPE_ALL, **_):
-            from pabutools.rules import method_of_equal_shares  # noqa: PLC0415
-            from pabutools.election import Cost_Sat  # noqa: PLC0415
-
-            instance, profile = adapters.to_pabutools_instance(setting_id, scope)
-            budget_allocation = method_of_equal_shares(
-                instance, profile, sat_class=Cost_Sat)
-            winners = [int(project.name) for project in budget_allocation]
-            log = ["Rule: pabutools Method of Equal Shares (Cost satisfaction).",
-                   f"Budget limit: {instance.budget_limit}.",
-                   f"Ballots: {len(profile)}, projects: {len(instance)}.",
-                   "Funded project ids: " + ", ".join(map(str, winners))]
-            return RuleResult(outcome=winners, log_lines=log)
-    except ImportError:
-        pass
-
-
-_register_optional_rules()
+adapters.register_library_rules()

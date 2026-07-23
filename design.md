@@ -1,4 +1,8 @@
-# Design Document: `comsocwebapp`
+Design Document for `comsocwebapp`
+==================================
+
+
+# Version 1
 
 ## Overview
 `comsocwebapp` is a Python package designed to easily create web applications for computational social choice problems. A typical application focuses on a single social choice problem—such as fair allocation, voting, or participatory budgeting. 
@@ -41,7 +45,8 @@ The library prioritizes developer experience, security, and modularity.
 *   **Security Standards:** Built-in middleware automatically handles Cross-Site Request Forgery (CSRF) protection, input sanitization, and rate-limiting on authentication endpoints.
 
 
-# Updates
+# Version 2
+
 
 ## Admin GUI updates
 
@@ -54,7 +59,8 @@ The library prioritizes developer experience, security, and modularity.
 
 ## Participant GUI updates
 
-1. Allow to register directly via gmail, github or orcid.
+1. Allow to register using an existing account of gmail, github or orcid. 
+
 
 
 ## Code structure
@@ -76,11 +82,16 @@ The library prioritizes developer experience, security, and modularity.
 
 5. Examples should use the wrapper function from above for seeding, rather than use direct DB calls.
 
-6. Add an example that would sit in a separate repository (including its own simplified installation guide).
+6. Add an example that lives in its own folder, and could be copied&pasted into a separate repository (including a simplified installation guide).
 
 
 ## Tests
 
 Prepare infrastructure and instructions for stress-testing, possible using `locust`. 
 The stress-test should verify that the application can support 1000 simultaneous users.
+
+
+## Python version
+
+Library should be supported on Python 3.12 onwards. Simplify the code accordingly: remove all code whose sole intention is to support older versions (e.g. no need to import annotations from future).
 

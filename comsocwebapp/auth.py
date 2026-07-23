@@ -15,11 +15,12 @@ import functools
 import secrets
 
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for,
+    Blueprint, current_app, flash, g, redirect, render_template, request,
+    session, url_for,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from . import db
+from . import db, oauth
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -76,29 +77,45 @@ def consume_invitation(invitation: dict) -> None:
 # --------------------------------------------------------------------------
 
 def create_user(email: str | None, password: str | None, is_admin: bool = False,
-                is_dummy: bool = False) -> int:
+                is_dummy: bool = False, auth_provider: str | None = None,
+                auth_subject: str | None = None) -> int:
     """Insert a user and return its id.
 
     Dummy users are created with ``email = None`` and no password: they exist
-    only to carry simulated preferences and can never log in.
+    only to carry simulated preferences and can never log in.  Users who came
+    in through Google/GitHub/ORCID have no password either -- they are
+    identified by ``(auth_provider, auth_subject)``.
     """
     return db.insert_returning_id(
-        "INSERT INTO users (email, password_hash, is_admin, is_dummy, created_at)"
-        " VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, password_hash, is_admin, is_dummy, created_at,"
+        "                   auth_provider, auth_subject)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             email,
             generate_password_hash(password) if password else None,
             1 if is_admin else 0,
             1 if is_dummy else 0,
             db.utcnow_text(),
+            auth_provider,
+            auth_subject,
         ),
     )
 
 
 def find_user_by_email(email: str) -> dict | None:
     return db.query_one(
-        "SELECT id, email, password_hash, is_admin, is_dummy FROM users WHERE email = ?",
+        "SELECT id, email, password_hash, is_admin, is_dummy, auth_provider"
+        " FROM users WHERE email = ?",
         (email,),
+    )
+
+
+def find_user_by_provider(provider: str, subject: str) -> dict | None:
+    """Look up the account belonging to an external identity."""
+    return db.query_one(
+        "SELECT id, email, password_hash, is_admin, is_dummy, auth_provider"
+        " FROM users WHERE auth_provider = ? AND auth_subject = ?",
+        (provider, subject),
     )
 
 
@@ -172,7 +189,8 @@ def register():
             return redirect(url_for("participant.ballot", setting_id=invitation["setting_id"]))
         flash(error, "error")
 
-    return render_template("auth/register.html", token=token, invitation=invitation)
+    return render_template("auth/register.html", token=token, invitation=invitation,
+                           providers=oauth.configured_providers())
 
 
 @bp.route("/login", methods=("GET", "POST"))
@@ -196,7 +214,7 @@ def login():
             return redirect(url_for("admin.dashboard") if user["is_admin"]
                             else url_for("participant.index"))
 
-    return render_template("auth/login.html")
+    return render_template("auth/login.html", providers=oauth.configured_providers())
 
 
 @bp.route("/logout")
@@ -211,8 +229,92 @@ def invite(token: str):
     invitation = find_invitation(token)
     if invitation is None:
         flash("This invitation link is invalid or has already been used.", "error")
-        return render_template("auth/login.html"), 404
+        return render_template("auth/login.html",
+                               providers=oauth.configured_providers()), 404
     if g.user is not None:
         consume_invitation(invitation)
         return redirect(url_for("participant.ballot", setting_id=invitation["setting_id"]))
     return redirect(url_for("auth.register", token=token))
+
+
+# --------------------------------------------------------------------------
+# Registration and login through Google / GitHub / ORCID
+# --------------------------------------------------------------------------
+
+@bp.route("/oauth/<provider>")
+def oauth_login(provider: str):
+    """Send the visitor to the provider's consent screen."""
+    client = oauth.get_client(provider)
+    if client is None:
+        flash(f"Sign-in with {provider} is not configured on this server.", "error")
+        return redirect(url_for("auth.login"))
+
+    # The invitation is remembered across the round trip to the provider: the
+    # visitor comes back to a bare callback URL with no token on it.
+    token = request.args.get("token", "")
+    if token and find_invitation(token) is not None:
+        session["pending_invitation"] = token
+
+    return client.authorize_redirect(
+        url_for("auth.oauth_callback", provider=provider, _external=True))
+
+
+@bp.route("/oauth/<provider>/callback")
+def oauth_callback(provider: str):
+    """Complete the provider hand-shake: log in, or register on an invitation."""
+    client = oauth.get_client(provider)
+    if client is None:
+        flash(f"Sign-in with {provider} is not configured on this server.", "error")
+        return redirect(url_for("auth.login"))
+
+    try:
+        token = client.authorize_access_token()
+        subject, email, _display = oauth.fetch_identity(provider, client, token)
+    except Exception:
+        # Anything from a denied consent to an expired state lands here; the
+        # details go to the log, never to the visitor.
+        current_app.logger.exception("OAuth callback failed for %s", provider)
+        flash("Sign-in with that provider failed. Please try again.", "error")
+        return redirect(url_for("auth.login"))
+
+    email = (email or "").strip().lower() or None
+    user = find_user_by_provider(provider, subject)
+
+    if user is None and email is not None:
+        # Same person, previously registered with a password: adopt the
+        # account rather than creating a second one for the same email.
+        existing = find_user_by_email(email)
+        if existing is not None and existing["auth_provider"] is None:
+            db.execute(
+                "UPDATE users SET auth_provider = ?, auth_subject = ? WHERE id = ?",
+                (provider, subject, existing["id"]))
+            user = existing
+
+    if user is None:
+        invitation_token = session.pop("pending_invitation", "")
+        invitation = find_invitation(invitation_token) if invitation_token else None
+        if invitation is None:
+            flash("You need a valid invitation link before you can register.", "error")
+            return redirect(url_for("auth.login"))
+        if email is not None and find_user_by_email(email) is not None:
+            flash("That email address is already registered.", "error")
+            return redirect(url_for("auth.login"))
+
+        user_id = create_user(email, None, auth_provider=provider, auth_subject=subject)
+        consume_invitation(invitation)
+        session.clear()
+        session["user_id"] = user_id
+        return redirect(url_for("participant.ballot",
+                                setting_id=invitation["setting_id"]))
+
+    # Known account: an invitation in flight still decides where to land.
+    invitation_token = session.pop("pending_invitation", "")
+    invitation = find_invitation(invitation_token) if invitation_token else None
+    session.clear()
+    session["user_id"] = user["id"]
+    if invitation is not None:
+        consume_invitation(invitation)
+        return redirect(url_for("participant.ballot",
+                                setting_id=invitation["setting_id"]))
+    return redirect(url_for("admin.dashboard") if user["is_admin"]
+                    else url_for("participant.index"))

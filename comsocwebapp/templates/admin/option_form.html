@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Edit option {{ option.position }}{% endblock %}
+{% block heading %}Edit option {{ option.position }} — {{ setting.title }}{% endblock %}
+{% block content %}
+<p class="hint">The option keeps its number ({{ option.position }}) and its
+   identity, so ballots already cast on it stay valid.</p>
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>Name <input name="name" value="{{ option.name }}" required></label>
+  <label>Description
+    <input name="description" value="{{ option.description or '' }}"></label>
+  <label>Cost <input name="cost" type="number" min="0" value="{{ option.cost }}"></label>
+  <button type="submit">Save</button>
+  <a href="{{ url_for('admin.setting_detail', setting_id=setting.id) }}">Cancel</a>
+</form>
+{% endblock %}
