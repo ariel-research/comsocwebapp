@@ -1,7 +1,5 @@
 """Participant blueprint: cast a ballot, get a receipt, read the results."""
 
-from __future__ import annotations
-
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, url_for,
 )

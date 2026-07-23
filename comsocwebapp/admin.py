@@ -1,7 +1,5 @@
 """Admin blueprint: define the problem, invite people, simulate, run rules."""
 
-from __future__ import annotations
-
 import csv
 import io
 

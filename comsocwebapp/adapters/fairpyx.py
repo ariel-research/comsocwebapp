@@ -8,8 +8,6 @@ fairpyx`` inside it resolves to the *installed library*: Python 3 imports are
 absolute, and this module's full name is ``comsocwebapp.adapters.fairpyx``.)
 """
 
-from __future__ import annotations
-
 from . import generic
 
 LIBRARY = "fairpyx"

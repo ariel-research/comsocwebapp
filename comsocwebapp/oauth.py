@@ -26,8 +26,6 @@ keep theirs private, so the provider's own stable subject id is the only
 identifier we can always rely on.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any, Callable
 

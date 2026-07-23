@@ -14,8 +14,6 @@ Run this once, then start the server against the same database and point
 locust at it -- see README.md in this folder.
 """
 
-from __future__ import annotations
-
 import argparse
 import os
 import shutil

@@ -7,14 +7,15 @@ name = "comsocwebapp"
 version = "0.2.0"
 description = "Flask boilerplate for computational social choice web applications"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [{ name = "Erel Segal-Halevi" }]
 keywords = ["flask", "social choice", "fair division", "voting",
             "participatory budgeting"]
 classifiers = [
     "Framework :: Flask",
-    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
 ]
 # Flask is the only hard dependency: the database layer uses the standard

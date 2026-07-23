@@ -24,8 +24,6 @@ Typical use when seeding an application::
     )
 """
 
-from __future__ import annotations
-
 from typing import Any, Iterable, Mapping, Sequence
 
 from . import db

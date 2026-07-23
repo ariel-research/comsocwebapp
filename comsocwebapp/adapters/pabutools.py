@@ -5,8 +5,6 @@ Nothing here is imported at module load time, so the file is safe to import on
 an installation without ``pabutools``.
 """
 
-from __future__ import annotations
-
 from . import generic
 
 LIBRARY = "pabutools"

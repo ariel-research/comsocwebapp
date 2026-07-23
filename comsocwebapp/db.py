@@ -15,8 +15,6 @@ Design rules enforced throughout this module:
   instead and documented at the call site.
 """
 
-from __future__ import annotations
-
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Iterable, Sequence

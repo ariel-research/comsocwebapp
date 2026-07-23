@@ -13,8 +13,6 @@ fresh install can run end-to-end.  The rules backed by ``fairpyx``,
 library in question is importable.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Callable
 

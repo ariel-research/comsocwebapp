@@ -11,8 +11,6 @@ Applications that already use Flask-WTF can skip this by passing
 in the config to disable the check here.
 """
 
-from __future__ import annotations
-
 import secrets
 from hmac import compare_digest
 

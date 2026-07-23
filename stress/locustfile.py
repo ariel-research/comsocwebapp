@@ -18,8 +18,6 @@ Two user classes:
   solver library rather than the web application.
 """
 
-from __future__ import annotations
-
 import itertools
 import os
 import random

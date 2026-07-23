@@ -11,8 +11,6 @@ Never point a load test at ``flask run --debug``: the debugger and reloader
 serialise requests and you end up measuring them instead of the application.
 """
 
-from __future__ import annotations
-
 import argparse
 import os
 import sys

@@ -13,8 +13,6 @@ keep writing ``adapters.preference_matrix(...)`` or ``adapters.SCOPE_DUMMY``
 without knowing which file they live in.
 """
 
-from __future__ import annotations
-
 from . import abcvoting, fairpyx, generic, pabutools
 from .abcvoting import to_abcvoting_profile
 from .fairpyx import to_fairpyx_instance

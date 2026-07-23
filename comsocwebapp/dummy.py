@@ -13,8 +13,6 @@ design.md, and the generated values respect the setting's ``pref_format``:
 * ``budget``   -- draws rescaled so each ballot sums to ``budget_limit``.
 """
 
-from __future__ import annotations
-
 import random
 
 from . import adapters, db

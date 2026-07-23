@@ -48,8 +48,6 @@ Copy the shape of an existing file. Two rules matter:
 
 ```python
 """Adapter for yourlib -- what problem it solves."""
-from __future__ import annotations
-
 from . import generic
 
 LIBRARY = "yourlib"

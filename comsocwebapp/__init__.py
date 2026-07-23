@@ -11,8 +11,6 @@ or, from the shell::
     flask --app comsocwebapp run --debug
 """
 
-from __future__ import annotations
-
 import os
 from datetime import datetime, timezone
 

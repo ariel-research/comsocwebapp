@@ -9,8 +9,6 @@ Access to a setting is mediated by a row in ``invitations``:
   instead of by the token itself.
 """
 
-from __future__ import annotations
-
 import functools
 import secrets
 

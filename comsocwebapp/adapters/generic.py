@@ -19,8 +19,6 @@ pref_format  meaning of ``preferences.value``
 ===========  =====================================================
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from .. import db
