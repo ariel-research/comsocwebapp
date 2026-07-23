@@ -4,7 +4,7 @@ A faculty hiring committee shortlists candidates by approval voting.
 
 Run it::
 
-    pip install comsocwebapp
+    pip install "comsocwebapp @ git+https://github.com/ariel-research/comsocwebapp"
     python app.py
 
 Then open http://127.0.0.1:5010/ and log in as admin@example.com / admin.

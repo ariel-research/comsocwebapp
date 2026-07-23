@@ -5,25 +5,26 @@ member approves the candidates they consider hirable; the three most-approved
 are shortlisted, and everyone can read exactly how that was computed.
 
 This folder is self-contained. Copy it into a repository of your own, rename
-things, and it keeps working — it depends on `comsocwebapp` from PyPI and on
-nothing else in this repository.
+things, and it keeps working — it depends only on `comsocwebapp` and on nothing
+else in this repository.
 
 ## Install and run
 
-Requires **Python 3.10+**.
+Requires **Python 3.12+**.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-pip install comsocwebapp
+# comsocwebapp is not on PyPI yet, so install it straight from GitHub:
+pip install "comsocwebapp @ git+https://github.com/ariel-research/comsocwebapp"
 
 python app.py
 ```
 
 Open <http://127.0.0.1:5010/>, and log in as `admin@example.com` / `admin`.
 The console also prints an invitation link — open it in a private window to see
-what a committee member sees.
+what a voter sees.
 
 That is the whole installation. There is no database server to set up: the app
 creates an SQLite file under `instance/` on first run.
@@ -60,10 +61,12 @@ instance/            created on first run; holds the SQLite database
   overridden by putting a file with the same path under `templates/` here.
   This app overrides `participant/index.html`; everything else falls back to
   the package.
-* **Real solver libraries?** `pip install "comsocwebapp[all]"` adds rules from
-  `fairpyx`, `abcvoting` and `pabutools`. They show up in the admin's rule list
-  automatically.
-* **Sign-in with Google / GitHub / ORCID?** `pip install "comsocwebapp[oauth]"`
+* **Real solver libraries?**
+  `pip install "comsocwebapp[all] @ git+https://github.com/ariel-research/comsocwebapp"`
+  adds rules from `fairpyx`, `abcvoting` and `pabutools`. They show up in the
+  admin's rule list automatically.
+* **Sign-in with Google / GitHub / ORCID?**
+  `pip install "comsocwebapp[oauth] @ git+https://github.com/ariel-research/comsocwebapp"`
   and set the client id/secret in `CONFIG`, for example
   `OAUTH_GITHUB_CLIENT_ID` and `OAUTH_GITHUB_CLIENT_SECRET`.
 

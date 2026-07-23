@@ -90,7 +90,6 @@ The library prioritizes developer experience, security, and modularity.
 Prepare infrastructure and instructions for stress-testing, possible using `locust`. 
 The stress-test should verify that the application can support 1000 simultaneous users.
 
-
 ## Python version
 
 Library should be supported on Python 3.12 onwards. Simplify the code accordingly: remove all code whose sole intention is to support older versions (e.g. no need to import annotations from future).
