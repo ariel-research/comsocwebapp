@@ -19,8 +19,8 @@ from .fairpyx import to_fairpyx_instance
 from .generic import (  # noqa: F401 -- re-exported for convenience
     SCOPE_ALL, SCOPE_DUMMY, SCOPE_REAL, SCOPES,
     approval_sets, fetch_options, fetch_participants, fetch_preference_rows,
-    fetch_setting, fetch_user_preferences, option_costs, preference_matrix,
-    rankings,
+    fetch_setting, fetch_user_preferences, option_costs, option_label,
+    preference_matrix, rankings,
 )
 from .pabutools import to_pabutools_instance
 
@@ -35,6 +35,7 @@ __all__ = [
     "fetch_setting", "fetch_options", "fetch_participants",
     "fetch_preference_rows", "fetch_user_preferences",
     "preference_matrix", "approval_sets", "rankings", "option_costs",
+    "option_label",
     "to_fairpyx_instance", "to_abcvoting_profile", "to_pabutools_instance",
 ]
 

@@ -38,9 +38,12 @@ header nav { margin-left: auto; display: flex; gap: 1rem; align-items: center; }
 .who { color: var(--muted); }
 
 main { max-width: 60rem; margin: 0 auto; padding: 1rem; }
-h1 { font-size: 1.5rem; }
-h2 { font-size: 1.15rem; margin-top: 2rem; }
-section { border-top: 1px solid var(--line); }
+/* Larger, clearer heading hierarchy so the panels of the election page read as
+   distinct subsections (design.md V3 Admin #4). */
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; margin-top: 2.5rem; padding-top: .5rem; }
+h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+section { border-top: 2px solid var(--line); }
 
 a { color: var(--accent); }
 .hint, .meta { color: var(--muted); }

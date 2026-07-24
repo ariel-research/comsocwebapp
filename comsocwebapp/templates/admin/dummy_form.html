@@ -36,6 +36,7 @@
     </tbody>
   </table>
   <button type="submit">Save preferences</button>
-  <a href="{{ url_for('admin.list_dummies', setting_id=setting.id) }}">Cancel</a>
+  <a href="{{ url_for('admin.setting_detail', setting_id=setting.id,
+                       _anchor='participation') }}">Cancel</a>
 </form>
 {% endblock %}

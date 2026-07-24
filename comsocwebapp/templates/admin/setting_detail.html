@@ -3,10 +3,18 @@
 {% block heading %}{{ setting.title }}{% endblock %}
 {% block content %}
 
+{# Format-driven display flags, used throughout this page.
+   - a per-project cost and a spending budget only matter for participatory
+     budgeting; approval voting and fair allocation hide both (V3 Specific #1);
+   - committee size only matters when the rule elects a fixed-size winner set,
+     i.e. approval or ranking (V3 Specific #2). #}
+{% set is_budget = setting.pref_format == 'budget' %}
+{% set uses_committee = setting.pref_format in ('approval', 'ranking') %}
+
 <p class="meta">
-  Format <strong>{{ setting.pref_format }}</strong> &middot;
-  budget limit <strong>{{ setting.budget_limit }}</strong> &middot;
-  status <span class="status {{ setting.status }}">{{ setting.status }}</span>
+  Format <strong>{{ setting.pref_format }}</strong>
+  {% if is_budget %}&middot; budget limit <strong>{{ setting.budget_limit }}</strong>{% endif %}
+  &middot; status <span class="status {{ setting.status }}">{{ setting.status }}</span>
 </p>
 
 <form method="post" action="{{ url_for('admin.set_status', setting_id=setting.id) }}"
@@ -23,13 +31,15 @@
 <section>
   <h2>Options ({{ options|length }})</h2>
   <table>
-    <thead><tr><th>#</th><th>Name</th><th>Description</th><th>Cost</th><th></th></tr></thead>
+    <thead><tr><th>#</th><th>Name</th><th>Description</th>
+      {% if is_budget %}<th>Cost</th>{% endif %}<th></th></tr></thead>
     <tbody>
       {% for o in options %}
       <tr>
         {# The number shown is the per-setting position, not the global id. #}
         <td>{{ o.position }}</td><td>{{ o.name }}</td>
-        <td>{{ o.description }}</td><td>{{ o.cost }}</td>
+        <td>{{ o.description }}</td>
+        {% if is_budget %}<td>{{ o.cost }}</td>{% endif %}
         <td>
           <a href="{{ url_for('admin.edit_option', setting_id=setting.id, option_id=o.id) }}">edit</a>
           <form method="post" class="inline"
@@ -40,19 +50,19 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="hint">No options yet.</td></tr>
+      <tr><td colspan="{{ 5 if is_budget else 4 }}" class="hint">No options yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="hint">Options are numbered 1…{{ options|length }} within this
-     setting; deleting one renumbers the rest.</p>
 
   <form method="post" action="{{ url_for('admin.add_option', setting_id=setting.id) }}"
         class="row">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input name="name" placeholder="Name" required>
     <input name="description" placeholder="Description">
-    <input name="cost" type="number" value="0" min="0" placeholder="Cost">
+    {% if is_budget %}
+      <input name="cost" type="number" value="0" min="0" placeholder="Cost">
+    {% endif %}
     <button type="submit">Add option</button>
   </form>
 
@@ -60,7 +70,7 @@
         action="{{ url_for('admin.upload_options', setting_id=setting.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="file" name="file" accept=".csv">
-    <button type="submit">Bulk upload CSV (name, description, cost)</button>
+    <button type="submit">Bulk upload CSV (name, description{{ ', cost' if is_budget }})</button>
   </form>
 </section>
 
@@ -110,18 +120,13 @@
     <button type="submit">Generate dummy users</button>
   </form>
 
-  <p>
-    <a class="button" href="{{ url_for('admin.list_dummies', setting_id=setting.id) }}">
-      View / edit dummy voters</a>
-  </p>
-
   <form method="post" action="{{ url_for('admin.drop_dummies', setting_id=setting.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="danger">Delete all dummy users</button>
   </form>
 </section>
 
-<section>
+<section id="participation">
   <h2>Participation ({{ participants|length }} ballots cast)</h2>
   <table>
     <thead><tr><th>user id</th><th>email</th><th>kind</th></tr></thead>
@@ -136,38 +141,104 @@
   </table>
   <p><a href="{{ url_for('admin.export_preferences', setting_id=setting.id) }}">
     Export anonymised preferences (CSV)</a></p>
+
+  {# The dummy voters' preferences, editable here rather than on a page of
+     their own (V3 Admin #1).  Real participants' ballots are never editable
+     by the admin, so only dummy voters appear. #}
+  <h3>Dummy voters ({{ dummy_ballots|length }})</h3>
+  {% if dummy_ballots %}
+  <table>
+    <thead>
+      <tr>
+        <th>user</th>
+        {% for o in options %}<th title="{{ o.name }}">{{ o.position }}. {{ o.name }}</th>{% endfor %}
+        <th>total</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ballot in dummy_ballots %}
+      <tr>
+        <td>#{{ ballot.user_id }}</td>
+        {% for o in options %}
+          <td>{{ ballot.ballot.get(o.id) if ballot.ballot.get(o.id) is not none else '—' }}</td>
+        {% endfor %}
+        <td>{{ ballot.total }}</td>
+        <td>
+          <a href="{{ url_for('admin.edit_dummy', setting_id=setting.id,
+                              user_id=ballot.user_id) }}">edit</a>
+          <form method="post" class="inline"
+                action="{{ url_for('admin.delete_dummy', setting_id=setting.id,
+                                   user_id=ballot.user_id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="danger">delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">No dummy voters yet — generate some above.</p>
+  {% endif %}
 </section>
 
-<section>
+<section id="run">
   <h2>Run a rule</h2>
   <form method="post" action="{{ url_for('admin.run', setting_id=setting.id) }}" class="row">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>rule
       <select name="rule_name">
-        {% for r in rule_names %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        {% for r in rule_names %}
+          <option value="{{ r }}" {% if r == last_run.rule_name %}selected{% endif %}>{{ r }}</option>
+        {% else %}
+          <option value="" disabled>No rule fits this format</option>
+        {% endfor %}
       </select>
     </label>
     <label>scope
       <select name="scope">
-        {% for s in scopes %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        {% for s in scopes %}
+          <option value="{{ s }}" {% if s == last_run.scope %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
       </select>
     </label>
-    <label>committee size <input name="committee_size" type="number" value="1" min="1"></label>
+    {% if uses_committee %}
+    <label>committee size <input name="committee_size" type="number" min="1"
+                                 value="{{ last_run.committee_size }}"></label>
+    {% endif %}
     <button type="submit">Run</button>
   </form>
 </section>
 
 <section>
   <h2>Execution logs</h2>
-  {% for log in logs %}
+  {% if logs %}
+    {# Show only the most recent run by default; older ones fold away
+       (V3 Admin #3). #}
+    {% set latest = logs[0] %}
     <article class="log">
-      <h3>#{{ log.id }} — {{ log.rule_name }}</h3>
-      <p><strong>Outcome:</strong> {{ log.outcome or '(none)' }}</p>
-      <pre>{{ log.run_log }}</pre>
+      <h3>#{{ latest.id }} — {{ latest.rule_name }}</h3>
+      <p><strong>Outcome:</strong>
+         {{ latest.winners|join('; ') if latest.winners else '(none)' }}</p>
+      <pre>{{ latest.run_log }}</pre>
     </article>
+
+    {% if logs|length > 1 %}
+    <details>
+      <summary>View previous logs ({{ logs|length - 1 }})</summary>
+      {% for log in logs[1:] %}
+        <article class="log">
+          <h3>#{{ log.id }} — {{ log.rule_name }}</h3>
+          <p><strong>Outcome:</strong>
+             {{ log.winners|join('; ') if log.winners else '(none)' }}</p>
+          <pre>{{ log.run_log }}</pre>
+        </article>
+      {% endfor %}
+    </details>
+    {% endif %}
   {% else %}
     <p class="hint">No rule has been run yet.</p>
-  {% endfor %}
+  {% endif %}
   <p><a href="{{ url_for('admin.export_logs', setting_id=setting.id) }}">
     Export execution logs (CSV)</a></p>
 </section>

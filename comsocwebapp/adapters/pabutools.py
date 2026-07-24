@@ -55,7 +55,7 @@ def register_rules() -> None:
     """Register this library's rules.  Called by :mod:`comsocwebapp.adapters`."""
     from .. import rules
 
-    @rules.register_rule("pabutools_mes")
+    @rules.register_rule("pabutools_mes", formats=("budget",))
     def pabutools_mes(setting_id: int, scope: str = generic.SCOPE_ALL, **_):
         """Method of Equal Shares over cost satisfaction."""
         from pabutools.election import Cost_Sat
@@ -64,8 +64,12 @@ def register_rules() -> None:
         instance, profile = to_pabutools_instance(setting_id, scope)
         allocation = method_of_equal_shares(instance, profile, sat_class=Cost_Sat)
         winners = [int(project.name) for project in allocation]
+        options = {o["id"]: o for o in generic.fetch_options(setting_id)}
+        spent = sum(options[oid]["cost"] for oid in winners)
         log = ["Rule: pabutools Method of Equal Shares (Cost satisfaction).",
                f"Budget limit: {instance.budget_limit}.",
                f"Ballots: {len(profile)}, projects: {len(instance)}.",
-               "Funded project ids: " + ", ".join(map(str, winners))]
+               f"Funded {len(winners)} projects for {spent} of"
+               f" {instance.budget_limit}:",
+               *(f"  {generic.option_label(options[oid])}" for oid in winners)]
         return rules.RuleResult(outcome=winners, log_lines=log)

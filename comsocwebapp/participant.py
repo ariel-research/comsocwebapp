@@ -4,7 +4,7 @@ from flask import (
     Blueprint, flash, g, redirect, render_template, request, url_for,
 )
 
-from . import adapters, db
+from . import adapters, db, rules
 from .auth import login_required
 
 bp = Blueprint("participant", __name__)
@@ -36,6 +36,11 @@ def _validate(pref_format: str, values: dict[int, int], budget_limit: int) -> st
     elif pref_format == "points":
         if any(value < 0 for value in values.values()):
             return "Points must not be negative."
+        # A point limit means the values must add up to it exactly -- no more,
+        # no less (design.md V3 Participant #1).  Zero means "no limit".
+        if budget_limit and sum(values.values()) != budget_limit:
+            return (f"Your points must add up to exactly {budget_limit}"
+                    f" (they currently total {sum(values.values())}).")
     return None
 
 
@@ -122,11 +127,10 @@ def results(setting_id: int):
         " WHERE setting_id = ? ORDER BY id DESC",
         (setting_id,),
     )
-    names = {str(o["id"]): o["name"] for o in adapters.fetch_options(setting_id)}
     winners = []
     if latest and latest["outcome"]:
-        winners = [names.get(part.strip(), part.strip())
-                   for part in latest["outcome"].split(",") if part.strip()]
+        # Same readable "position. name -- description" labels the admin sees.
+        winners = rules.describe_outcome(setting_id, latest["outcome"])
 
     my_ballot = db.query_all(
         "SELECT o.name AS option_name, p.value FROM preferences p"

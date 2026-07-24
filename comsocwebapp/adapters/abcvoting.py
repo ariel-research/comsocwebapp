@@ -44,7 +44,7 @@ def register_rules() -> None:
     """Register this library's rules.  Called by :mod:`comsocwebapp.adapters`."""
     from .. import rules
 
-    @rules.register_rule("abcvoting_pav")
+    @rules.register_rule("abcvoting_pav", formats=("approval",))
     def abcvoting_pav(setting_id: int, scope: str = generic.SCOPE_ALL,
                       committee_size: int = 3, **_):
         """Proportional Approval Voting."""
@@ -53,9 +53,14 @@ def register_rules() -> None:
         profile, option_ids = to_abcvoting_profile(setting_id, scope)
         committees = abcrules.compute("pav", profile, committeesize=committee_size)
         winners = [option_ids[index] for index in sorted(committees[0])]
-        log = ["Rule: abcvoting Proportional Approval Voting (PAV).",
+        options = {o["id"]: o for o in generic.fetch_options(setting_id)}
+        # Ask abcvoting to name its own rule, so the log stays accurate even if
+        # the library relabels it (design.md V3 Admin #8).
+        long_name = abcrules.get_rule("pav").longname
+        log = [f"Rule: abcvoting — {long_name}.",
                f"Voters: {len(profile)}, candidates: {len(option_ids)},"
                f" committee size: {committee_size}.",
                f"Tied optimal committees found: {len(committees)}.",
-               "Elected: " + ", ".join(str(winner) for winner in winners)]
+               "Elected: " + ", ".join(generic.option_label(options[winner])
+                                        for winner in winners)]
         return rules.RuleResult(outcome=winners, log_lines=log)

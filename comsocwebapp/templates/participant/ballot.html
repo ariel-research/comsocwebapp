@@ -3,6 +3,10 @@
 {% block heading %}{{ setting.title }}{% endblock %}
 {% block content %}
 
+{# A points setting may carry a point limit (budget_limit): when it does, the
+   values must add up to exactly that (V3 Participant #1). #}
+{% set point_limit = setting.budget_limit if setting.pref_format == 'points' else 0 %}
+
 {% if setting.pref_format == 'approval' %}
   <p class="hint">Tick every option you approve of.</p>
 {% elif setting.pref_format == 'ranking' %}
@@ -10,8 +14,12 @@
     option at 0 to say you did not rank it.</p>
 {% elif setting.pref_format == 'budget' %}
   <p class="hint">Distribute up to {{ setting.budget_limit }} among the projects.</p>
+{% elif point_limit %}
+  <p class="hint">Distribute exactly {{ point_limit }} points among the options —
+    the values must add up to {{ point_limit }}. Use “Normalize” to rescale what
+    you have entered so that it does.</p>
 {% else %}
-  <p class="hint">Give each option a value between 0 and {{ setting.budget_limit or 100 }}.</p>
+  <p class="hint">Give each option a value of 0 or more.</p>
 {% endif %}
 
 {% if setting.status != 'open' %}
@@ -19,7 +27,7 @@
     not change your answers.</p>
 {% endif %}
 
-<form method="post">
+<form method="post" id="ballot-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <table>
     <thead><tr><th>#</th><th>Option</th><th>Description</th>
@@ -39,14 +47,74 @@
                    value="1" {% if current.get(o.id) %}checked{% endif %}>
           {% else %}
             <input type="number" id="option_{{ o.id }}" name="option_{{ o.id }}"
-                   value="{{ current.get(o.id, 0) }}" min="0">
+                   value="{{ current.get(o.id, 0) }}" min="0"
+                   {% if point_limit %}class="points-input" max="{{ point_limit }}"{% endif %}>
           {% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+
+  {% if point_limit %}
+  <p class="meta">Total: <strong id="points-total">0</strong> / {{ point_limit }}
+    <button type="button" id="normalize">Normalize</button></p>
+  {% endif %}
+
   <button type="submit" {% if setting.status != 'open' %}disabled{% endif %}>
     Submit my preferences</button>
 </form>
+
+{% if point_limit %}
+<script>
+  // Points must sum to the limit exactly.  This keeps a live total, offers a
+  // "Normalize" button that rescales the entries to hit the limit (staying
+  // whole numbers), and blocks submission until the total matches.  The server
+  // re-checks the same rule, so this is only a convenience.
+  (function () {
+    const LIMIT = {{ point_limit }};
+    const inputs = Array.from(document.querySelectorAll(".points-input"));
+    const totalEl = document.getElementById("points-total");
+    const submit = document.querySelector("#ballot-form button[type=submit]");
+
+    const values = () => inputs.map(i => Math.max(0, parseInt(i.value, 10) || 0));
+    const sum = arr => arr.reduce((a, b) => a + b, 0);
+
+    function refresh() {
+      const total = sum(values());
+      totalEl.textContent = total;
+      totalEl.style.color = total === LIMIT ? "" : "var(--danger)";
+      submit.disabled = total !== LIMIT;
+    }
+
+    function normalize() {
+      const current = values();
+      const total = sum(current);
+      let scaled;
+      if (total === 0) {
+        // Nothing entered yet: spread the limit as evenly as possible.
+        scaled = inputs.map((_, i) => Math.floor(LIMIT / inputs.length) +
+                                      (i < LIMIT % inputs.length ? 1 : 0));
+      } else {
+        scaled = current.map(v => Math.round(v * LIMIT / total));
+        // Rounding can drift a point or two off the limit; settle the
+        // difference on the largest entries so the total is exact.
+        let drift = LIMIT - sum(scaled);
+        const order = scaled.map((_, i) => i).sort((a, b) => scaled[b] - scaled[a]);
+        for (let k = 0; drift !== 0 && inputs.length; k = (k + 1) % order.length) {
+          const idx = order[k];
+          if (drift > 0) { scaled[idx]++; drift--; }
+          else if (scaled[idx] > 0) { scaled[idx]--; drift++; }
+        }
+      }
+      inputs.forEach((input, i) => { input.value = scaled[i]; });
+      refresh();
+    }
+
+    inputs.forEach(input => input.addEventListener("input", refresh));
+    document.getElementById("normalize").addEventListener("click", normalize);
+    refresh();
+  })();
+</script>
+{% endif %}
 {% endblock %}

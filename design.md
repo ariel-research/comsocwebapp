@@ -94,3 +94,35 @@ The stress-test should verify that the application can support 1000 simultaneous
 
 Library should be supported on Python 3.12 onwards. Simplify the code accordingly: remove all code whose sole intention is to support older versions (e.g. no need to import annotations from future).
 
+# Version 3
+
+## Admin GUI
+
+1. Remove the button "view / edit dummy voters"; show the contents of that page (preferences of dummy voters + edit and delete buttons) in the main election page, under the current "Participation" heading. 
+
+2. After clicking "Run a rule", the page should scroll to the "Run a rule" heading. Also, the values in the "Run a rule" form should remain (not reset to their default).
+
+3. "Execution logs" should show by default only the last log. Below that, a link "View previous logs" enables the admin to view all logs.
+
+4. The headings and sub-headings in the election panel should be larger, for a clearer visual distinction between the subsections of that page.
+
+5. The "rule" select box should only show rules relevant to the setting (e.g. a committee voting setting should not show fair allocation rules, and vice versa).
+
+6. The explanation "Options are numbered ... within this setting... " is not needed. Delete it
+
+7. In the execution logs, the elected candidates are shown via their index in the main table. They should be shown via their position in the current setting, as well as with their human-readable name and description. If it is not possible to show their position, then show only their human-readable name and description.
+
+8. For the execution logs, look for a way use the logs produced by the various libraries, to get a more informative log. 
+
+## Participant GUI
+
+1. With "points" input, if there is a point limit, the participant should not be allowed to enter points with sum larger or smaller than the limit. 
+
+2. With "points" input, there should be a button "normalize", that scales all points (keeping them integers), such that their sum equals the limit.
+
+## Specific settings
+
+1. In the "approval voting" and the "fair allocation" settings the cost is irrelevant, so it should not be shown near the candidates in the table or in the form. Also the budget limit should not be shown.
+
+2. In the "participatory budgeting" and "fair allocation" settings the committee size is irrelevant. It should not be shown under "Run a rule".
+

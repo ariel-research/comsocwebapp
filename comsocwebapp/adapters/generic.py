@@ -27,7 +27,7 @@ __all__ = [
     "SCOPE_ALL", "SCOPE_REAL", "SCOPE_DUMMY", "SCOPES",
     "fetch_setting", "fetch_options", "fetch_participants", "fetch_preference_rows",
     "fetch_user_preferences", "preference_matrix", "approval_sets", "rankings",
-    "option_costs",
+    "option_costs", "option_label",
 ]
 
 # Execution scope: the admin may run a rule on real users only, dummy users
@@ -174,3 +174,15 @@ def option_costs(setting_id: int, by_name: bool = True) -> dict[Any, int]:
         (o["name"] if by_name else o["id"]): o["cost"]
         for o in fetch_options(setting_id)
     }
+
+
+def option_label(option: dict[str, Any]) -> str:
+    """Human-readable label for one option row: ``'3. Bike lanes -- 2 km'``.
+
+    Position first (so it matches the number the admin and voters see), then
+    the name, then the description when there is one.  Used to make execution
+    logs and results readable instead of printing bare ids.
+    """
+    if option.get("description"):
+        return f"{option['position']}. {option['name']} — {option['description']}"
+    return f"{option['position']}. {option['name']}"

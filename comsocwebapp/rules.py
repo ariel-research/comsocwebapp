@@ -18,7 +18,8 @@ from typing import Callable
 
 from . import adapters, db
 
-__all__ = ["RuleResult", "register_rule", "available_rules", "run_rule", "record_execution"]
+__all__ = ["RuleResult", "register_rule", "available_rules", "run_rule",
+           "record_execution", "describe_outcome"]
 
 
 @dataclass
@@ -37,22 +38,37 @@ class RuleResult:
 
 
 _REGISTRY: dict[str, Callable[..., RuleResult]] = {}
+#: Which preference formats each rule applies to.  ``None`` means "any format";
+#: otherwise only settings whose ``pref_format`` is in the tuple offer the rule.
+_RULE_FORMATS: dict[str, tuple[str, ...] | None] = {}
 
 
-def register_rule(name: str):
+def register_rule(name: str, formats: tuple[str, ...] | None = None):
     """Decorator registering a rule under ``name``.
+
+    ``formats`` lists the preference formats the rule makes sense for (e.g.
+    ``("approval",)`` for a committee-voting rule).  It drives the admin's rule
+    picker, so a fair-allocation setting never offers a budgeting rule and vice
+    versa.  ``None`` keeps the rule available everywhere.
 
     Applications extend the package by importing it and decorating their own
     function -- no subclassing, no configuration file.
     """
     def decorator(func):
         _REGISTRY[name] = func
+        _RULE_FORMATS[name] = formats
         return func
     return decorator
 
 
-def available_rules() -> list[str]:
-    return sorted(_REGISTRY)
+def available_rules(pref_format: str | None = None) -> list[str]:
+    """Rule names, optionally narrowed to those valid for ``pref_format``."""
+    if pref_format is None:
+        return sorted(_REGISTRY)
+    return sorted(
+        name for name, formats in _RULE_FORMATS.items()
+        if formats is None or pref_format in formats
+    )
 
 
 def run_rule(rule_name: str, setting_id: int,
@@ -71,11 +87,38 @@ def record_execution(setting_id: int, rule_name: str, result: RuleResult) -> int
     )
 
 
+def describe_outcome(setting_id: int, outcome_text: str) -> list[str]:
+    """Turn a stored outcome string into human-readable winner labels.
+
+    Outcomes are stored as machine-stable option ids so they never drift when
+    an option is renamed.  For display we resolve each id to its position in
+    the setting plus name and description ("3. Bike lanes -- 2 km of track").
+    Tokens that are not a plain option id (e.g. a fairpyx allocation such as
+    ``agent:item|item``) cannot be placed by position, so they fall back to
+    whatever the rule stored -- satisfying design.md V3 Admin #7.
+    """
+    options = {o["id"]: o for o in adapters.fetch_options(setting_id)}
+    labels = []
+    for token in (part.strip() for part in outcome_text.split(",")):
+        if not token:
+            continue
+        option = options.get(int(token)) if token.isdigit() else None
+        # Not a plain option id (e.g. a fairpyx allocation) -> show it verbatim.
+        labels.append(adapters.option_label(option) if option else token)
+    return labels
+
+
+def _winner_labels(setting_id: int, winner_ids) -> str:
+    """Comma-joined 'position. name' for winners, for use inside a run log."""
+    return ", ".join(describe_outcome(setting_id, ", ".join(map(str, winner_ids)))) \
+        or "(none)"
+
+
 # --------------------------------------------------------------------------
 # Built-in rules (no external dependencies)
 # --------------------------------------------------------------------------
 
-@register_rule("approval_scoring")
+@register_rule("approval_scoring", formats=("approval",))
 def approval_scoring(setting_id: int, scope: str = adapters.SCOPE_ALL,
                      committee_size: int = 1, **_) -> RuleResult:
     """Elect the ``committee_size`` options with the most approvals."""
@@ -91,11 +134,11 @@ def approval_scoring(setting_id: int, scope: str = adapters.SCOPE_ALL,
     log = [f"Rule: approval_scoring (committee size {committee_size}, scope '{scope}').",
            "Approval counts:"]
     log += [f"  {options[oid]}: {score}" for oid, score in ordered]
-    log.append("Winners: " + ", ".join(options[oid] for oid in winners))
+    log.append("Winners: " + _winner_labels(setting_id, winners))
     return RuleResult(outcome=winners, log_lines=log)
 
 
-@register_rule("borda")
+@register_rule("borda", formats=("ranking",))
 def borda(setting_id: int, scope: str = adapters.SCOPE_ALL,
           committee_size: int = 1, **_) -> RuleResult:
     """Borda count over the ``ranking`` format: rank 1 earns n-1 points."""
@@ -111,11 +154,11 @@ def borda(setting_id: int, scope: str = adapters.SCOPE_ALL,
 
     log = [f"Rule: borda (scope '{scope}'), {size} options.", "Borda scores:"]
     log += [f"  {options[oid]}: {score}" for oid, score in ordered]
-    log.append("Winners: " + ", ".join(options[oid] for oid in winners))
+    log.append("Winners: " + _winner_labels(setting_id, winners))
     return RuleResult(outcome=winners, log_lines=log)
 
 
-@register_rule("greedy_budget")
+@register_rule("greedy_budget", formats=("budget",))
 def greedy_budget(setting_id: int, scope: str = adapters.SCOPE_ALL, **_) -> RuleResult:
     """Greedy participatory budgeting: best approvals-per-currency first."""
     setting = adapters.fetch_setting(setting_id)

@@ -54,16 +54,20 @@ def register_rules() -> None:
     """
     from .. import rules
 
-    @rules.register_rule("fairpyx_round_robin")
+    @rules.register_rule("fairpyx_round_robin", formats=("points", "ranking"))
     def fairpyx_round_robin(setting_id: int, scope: str = generic.SCOPE_ALL, **_):
         """Round-robin: agents take turns picking their most valued free item."""
         from fairpyx import divide
         from fairpyx.algorithms import round_robin
 
         allocation = divide(round_robin, to_fairpyx_instance(setting_id, scope))
-        log = ["Rule: fairpyx round-robin.", f"Agents: {len(allocation)}.",
-               "Allocation:"]
-        log += [f"  agent {agent}: {', '.join(map(str, bundle))}"
+        # Bundles hold option *names* (to_fairpyx_instance builds the valuation
+        # matrix by name), so the allocation already reads in human terms; a
+        # per-item position cannot be attached to a whole bundle, which is the
+        # "show the name instead" fallback of design.md V3 Admin #7.
+        log = ["Rule: fairpyx round-robin (envy-free up to one item).",
+               f"Agents: {len(allocation)}.", "Allocation:"]
+        log += [f"  agent {agent}: {', '.join(map(str, bundle)) or '(nothing)'}"
                 for agent, bundle in allocation.items()]
         outcome = [f"{agent}:{'|'.join(map(str, bundle))}"
                    for agent, bundle in allocation.items()]

@@ -2,8 +2,9 @@
 
     python examples/fair_allocation.py
 
-Heirs divide an estate: each declares how much each item is worth to them
-(``points`` format, 0-100).  With ``fairpyx`` installed, the admin can run
+Heirs divide an estate: each spreads 100 points across the items to say how
+much each is worth to them (``points`` format with a point limit of 100, so a
+ballot must total exactly 100).  With ``fairpyx`` installed, the admin can run
 ``fairpyx_round_robin`` on the collected valuations.  Serves on
 http://127.0.0.1:5003/.
 
@@ -55,10 +56,10 @@ def seed(app):
         setting_id = setting.create_setting(
             "Estate division",
             pref_format="points",
+            # The point limit: every heir's ballot must total exactly 100.
             budget_limit=100,
             status="open",
-            options=[(name, "How much is this worth to you (0-100)?", 0)
-                     for name in ITEMS],
+            options=[(name, "Share of your 100 points", 0) for name in ITEMS],
         )
         dummy.generate_dummy_users(setting_id, HEIRS, distribution="normal",
                                    low=0, high=100, seed=5)

@@ -4,8 +4,14 @@
 {% block content %}
 {% if latest %}
   <p><strong>Rule:</strong> {{ latest.rule_name }}</p>
-  <p><strong>Outcome:</strong>
-     {{ winners|join(', ') if winners else '(no option selected)' }}</p>
+  {% if winners %}
+    <p><strong>Outcome:</strong></p>
+    <ul>
+      {% for winner in winners %}<li>{{ winner }}</li>{% endfor %}
+    </ul>
+  {% else %}
+    <p><strong>Outcome:</strong> (no option selected)</p>
+  {% endif %}
 
   <h2>How this was decided</h2>
   <pre>{{ latest.run_log }}</pre>

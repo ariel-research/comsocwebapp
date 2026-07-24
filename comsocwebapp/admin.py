@@ -70,6 +70,16 @@ def setting_detail(setting_id: int):
     if setting is None:
         return render_template("admin/not_found.html"), 404
 
+    logs = db.query_all(
+        "SELECT id, rule_name, outcome, run_log FROM execution_logs"
+        " WHERE setting_id = ? ORDER BY id DESC",
+        (setting_id,),
+    )
+    # Resolve each stored outcome (option ids) to readable "position. name"
+    # labels for display (design.md V3 Admin #7).
+    for log in logs:
+        log["winners"] = rules.describe_outcome(setting_id, log["outcome"] or "")
+
     return render_template(
         "admin/setting_detail.html",
         setting=setting,
@@ -80,16 +90,41 @@ def setting_detail(setting_id: int):
             (setting_id,),
         ),
         participants=adapters.fetch_participants(setting_id),
-        logs=db.query_all(
-            "SELECT id, rule_name, outcome, run_log FROM execution_logs"
-            " WHERE setting_id = ? ORDER BY id DESC",
-            (setting_id,),
-        ),
-        rule_names=rules.available_rules(),
+        # The dummy voters' ballots are shown inline under Participation, so the
+        # admin no longer needs a separate page (design.md V3 Admin #1).
+        dummy_ballots=_dummy_ballots(setting_id),
+        logs=logs,
+        # Only rules that fit this setting's format are offered
+        # (design.md V3 Admin #5).
+        rule_names=rules.available_rules(setting["pref_format"]),
         scopes=(adapters.SCOPE_ALL, adapters.SCOPE_REAL, adapters.SCOPE_DUMMY),
         statuses=STATUSES,
         distributions=dummy.DISTRIBUTIONS,
+        # Re-populate the "Run a rule" form with the last submission so it does
+        # not reset to defaults (design.md V3 Admin #2).
+        last_run={
+            "rule_name": request.args.get("rule_name", ""),
+            "scope": request.args.get("scope", adapters.SCOPE_ALL),
+            "committee_size": request.args.get("committee_size", "1"),
+        },
     )
+
+
+def _dummy_ballots(setting_id: int) -> list[dict]:
+    """Every dummy voter of this setting with the ballot it carries.
+
+    Keyed "ballot" not "values": in Jinja, ``ballot.values`` would resolve to
+    the dict's ``.values()`` method rather than to our data.
+    """
+    ballots = []
+    for voter in adapters.fetch_participants(setting_id, adapters.SCOPE_DUMMY):
+        values = {
+            row["option_id"]: row["value"]
+            for row in adapters.fetch_user_preferences(voter["user_id"], setting_id)
+        }
+        ballots.append({"user_id": voter["user_id"], "ballot": values,
+                        "total": sum(value or 0 for value in values.values())})
+    return ballots
 
 
 @bp.route("/settings/<int:setting_id>/status", methods=("POST",))
@@ -220,30 +255,6 @@ def make_dummies(setting_id: int):
     return redirect(url_for("admin.setting_detail", setting_id=setting_id))
 
 
-@bp.route("/settings/<int:setting_id>/dummies/list")
-@admin_required
-def list_dummies(setting_id: int):
-    """Show every dummy voter of this setting with the ballot it carries."""
-    setting = adapters.fetch_setting(setting_id)
-    if setting is None:
-        return render_template("admin/not_found.html"), 404
-
-    options = adapters.fetch_options(setting_id)
-    ballots = []
-    for voter in adapters.fetch_participants(setting_id, adapters.SCOPE_DUMMY):
-        values = {
-            row["option_id"]: row["value"]
-            for row in adapters.fetch_user_preferences(voter["user_id"], setting_id)
-        }
-        # Keyed "ballot" not "values": in Jinja, ballot.values would resolve to
-        # the dict's .values() method rather than to our data.
-        ballots.append({"user_id": voter["user_id"], "ballot": values,
-                        "total": sum(value or 0 for value in values.values())})
-
-    return render_template("admin/dummies.html", setting=setting,
-                           options=options, ballots=ballots)
-
-
 @bp.route("/settings/<int:setting_id>/dummies/<int:user_id>/edit",
           methods=("GET", "POST"))
 @admin_required
@@ -271,7 +282,8 @@ def edit_dummy(setting_id: int, user_id: int):
         if submitted is not None:
             dummy.set_dummy_preferences(user_id, setting_id, submitted)
             flash(f"Updated the ballot of dummy user {user_id}.", "success")
-            return redirect(url_for("admin.list_dummies", setting_id=setting_id))
+            return redirect(url_for("admin.setting_detail", setting_id=setting_id,
+                                    _anchor="participation"))
 
     return render_template(
         "admin/dummy_form.html", setting=setting, user_id=user_id,
@@ -286,7 +298,8 @@ def delete_dummy(setting_id: int, user_id: int):
         flash(f"Deleted dummy user {user_id}.", "success")
     else:
         flash("That user is not a dummy user.", "error")
-    return redirect(url_for("admin.list_dummies", setting_id=setting_id))
+    return redirect(url_for("admin.setting_detail", setting_id=setting_id,
+                            _anchor="participation"))
 
 
 @bp.route("/settings/<int:setting_id>/dummies/delete", methods=("POST",))
@@ -324,7 +337,12 @@ def run(setting_id: int):
         flash(f"Rule '{rule_name}' completed.", "success")
 
     rules.record_execution(setting_id, rule_name, result)
-    return redirect(url_for("admin.setting_detail", setting_id=setting_id))
+    # Carry the chosen values back and jump to the "Run a rule" heading, so the
+    # form keeps its selection and the page lands on the fresh result
+    # (design.md V3 Admin #2).
+    return redirect(url_for(
+        "admin.setting_detail", setting_id=setting_id, _anchor="run",
+        rule_name=rule_name, scope=scope, committee_size=committee_size))
 
 
 # --------------------------------------------------------------------------
