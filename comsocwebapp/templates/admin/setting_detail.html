@@ -3,17 +3,21 @@
 {% block heading %}{{ setting.title }}{% endblock %}
 {% block content %}
 
-{# Format-driven display flags, used throughout this page.
-   - a per-project cost and a spending budget only matter for participatory
-     budgeting; approval voting and fair allocation hide both (V3 Specific #1);
-   - committee size only matters when the rule elects a fixed-size winner set,
-     i.e. approval or ranking (V3 Specific #2). #}
-{% set is_budget = setting.pref_format == 'budget' %}
-{% set uses_committee = setting.pref_format in ('approval', 'ranking') %}
+{# Display flags, driven by the format *and* the budget.  Participatory
+   budgeting is approval (or budget) ballots with a spending budget: only then
+   do per-project costs and the budget matter (V3 Specific #1).  A fixed-size
+   committee is elected only by plain approval voting or ranking, never once a
+   budget is in play (V3 Specific #2, V4 Admin #2).  A points setting's
+   budget_limit is a *point* limit, not money, so it is not budgeting. #}
+{% set has_budget = setting.budget_limit and setting.pref_format != 'points' %}
+{% set is_budgeting = setting.pref_format == 'budget'
+                      or (setting.pref_format == 'approval' and has_budget) %}
+{% set uses_committee = setting.pref_format == 'ranking'
+                        or (setting.pref_format == 'approval' and not has_budget) %}
 
 <p class="meta">
   Format <strong>{{ setting.pref_format }}</strong>
-  {% if is_budget %}&middot; budget limit <strong>{{ setting.budget_limit }}</strong>{% endif %}
+  {% if is_budgeting %}&middot; budget limit <strong>{{ setting.budget_limit }}</strong>{% endif %}
   &middot; status <span class="status {{ setting.status }}">{{ setting.status }}</span>
 </p>
 
@@ -32,14 +36,14 @@
   <h2>Options ({{ options|length }})</h2>
   <table>
     <thead><tr><th>#</th><th>Name</th><th>Description</th>
-      {% if is_budget %}<th>Cost</th>{% endif %}<th></th></tr></thead>
+      {% if is_budgeting %}<th>Cost</th>{% endif %}<th></th></tr></thead>
     <tbody>
       {% for o in options %}
       <tr>
         {# The number shown is the per-setting position, not the global id. #}
         <td>{{ o.position }}</td><td>{{ o.name }}</td>
         <td>{{ o.description }}</td>
-        {% if is_budget %}<td>{{ o.cost }}</td>{% endif %}
+        {% if is_budgeting %}<td>{{ o.cost }}</td>{% endif %}
         <td>
           <a href="{{ url_for('admin.edit_option', setting_id=setting.id, option_id=o.id) }}">edit</a>
           <form method="post" class="inline"
@@ -50,7 +54,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="{{ 5 if is_budget else 4 }}" class="hint">No options yet.</td></tr>
+      <tr><td colspan="{{ 5 if is_budgeting else 4 }}" class="hint">No options yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -60,7 +64,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input name="name" placeholder="Name" required>
     <input name="description" placeholder="Description">
-    {% if is_budget %}
+    {% if is_budgeting %}
       <input name="cost" type="number" value="0" min="0" placeholder="Cost">
     {% endif %}
     <button type="submit">Add option</button>
@@ -70,7 +74,7 @@
         action="{{ url_for('admin.upload_options', setting_id=setting.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="file" name="file" accept=".csv">
-    <button type="submit">Bulk upload CSV (name, description{{ ', cost' if is_budget }})</button>
+    <button type="submit">Bulk upload CSV (name, description{{ ', cost' if is_budgeting }})</button>
   </form>
 </section>
 
@@ -127,43 +131,30 @@
 </section>
 
 <section id="participation">
-  <h2>Participation ({{ participants|length }} ballots cast)</h2>
-  <table>
-    <thead><tr><th>user id</th><th>email</th><th>kind</th></tr></thead>
-    <tbody>
-      {% for p in participants %}
-      <tr><td>{{ p.user_id }}</td><td>{{ p.email or '—' }}</td>
-          <td>{{ 'dummy' if p.is_dummy else 'real' }}</td></tr>
-      {% else %}
-      <tr><td colspan="3" class="hint">Nobody has voted yet.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <p><a href="{{ url_for('admin.export_preferences', setting_id=setting.id) }}">
-    Export anonymised preferences (CSV)</a></p>
-
-  {# The dummy voters' preferences, editable here rather than on a page of
-     their own (V3 Admin #1).  Real participants' ballots are never editable
-     by the admin, so only dummy voters appear. #}
-  <h3>Dummy voters ({{ dummy_ballots|length }})</h3>
-  {% if dummy_ballots %}
+  <h2>Participation ({{ participant_ballots|length }} ballots cast)</h2>
+  {# One table for every vote -- real and dummy alike (V4 Admin #1).  Only
+     dummy ballots carry edit/delete controls; a real participant's ballot is
+     theirs alone. #}
   <table>
     <thead>
       <tr>
-        <th>user</th>
+        <th>user</th><th>email</th><th>kind</th>
         {% for o in options %}<th title="{{ o.name }}">{{ o.position }}. {{ o.name }}</th>{% endfor %}
         <th>total</th><th></th>
       </tr>
     </thead>
     <tbody>
-      {% for ballot in dummy_ballots %}
+      {% for ballot in participant_ballots %}
       <tr>
         <td>#{{ ballot.user_id }}</td>
+        <td>{{ ballot.email or '—' }}</td>
+        <td>{{ 'dummy' if ballot.is_dummy else 'real' }}</td>
         {% for o in options %}
           <td>{{ ballot.ballot.get(o.id) if ballot.ballot.get(o.id) is not none else '—' }}</td>
         {% endfor %}
         <td>{{ ballot.total }}</td>
         <td>
+          {% if ballot.is_dummy %}
           <a href="{{ url_for('admin.edit_dummy', setting_id=setting.id,
                               user_id=ballot.user_id) }}">edit</a>
           <form method="post" class="inline"
@@ -172,14 +163,16 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="danger">delete</button>
           </form>
+          {% endif %}
         </td>
       </tr>
+      {% else %}
+      <tr><td colspan="{{ options|length + 5 }}" class="hint">Nobody has voted yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
-  {% else %}
-  <p class="hint">No dummy voters yet — generate some above.</p>
-  {% endif %}
+  <p><a href="{{ url_for('admin.export_preferences', setting_id=setting.id) }}">
+    Export anonymised preferences (CSV)</a></p>
 </section>
 
 <section id="run">

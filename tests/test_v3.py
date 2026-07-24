@@ -8,13 +8,22 @@ from comsocwebapp import auth, db, rules, setting as setting_api
 # Rules filtered by preference format (Admin #5) + readable outcome (#7)
 # --------------------------------------------------------------------------
 
-def test_available_rules_are_narrowed_by_format():
-    assert "approval_scoring" in rules.available_rules("approval")
-    assert "approval_scoring" not in rules.available_rules("budget")
-    assert "greedy_budget" in rules.available_rules("budget")
-    assert "borda" in rules.available_rules("ranking")
+def _fmt(pref_format, budget_limit=0):
+    return {"pref_format": pref_format, "budget_limit": budget_limit}
+
+
+def test_available_rules_are_narrowed_by_format_and_budget():
+    committee = _fmt("approval", 0)          # plain committee voting
+    budgeting = _fmt("approval", 800_000)    # participatory budgeting
+    # Committee rules only for approval-without-budget.
+    assert "approval_scoring" in rules.available_rules(committee)
+    assert "approval_scoring" not in rules.available_rules(budgeting)
+    # Budgeting rules only once there is a budget (design.md V4 Admin #2).
+    assert "greedy_budget" in rules.available_rules(budgeting)
+    assert "greedy_budget" not in rules.available_rules(committee)
+    assert "borda" in rules.available_rules(_fmt("ranking"))
     # The unfiltered call still returns everything.
-    assert set(rules.available_rules("approval")) <= set(rules.available_rules())
+    assert set(rules.available_rules(committee)) <= set(rules.available_rules())
 
 
 def test_describe_outcome_uses_position_name_and_description(app):
@@ -106,9 +115,13 @@ def test_budget_setting_shows_cost_and_committee_hidden(app, logged_in_admin):
     assert "<th>Cost</th>" in body          # cost column present
 
 
-def test_approval_setting_hides_cost_shows_committee(app, setting, logged_in_admin):
-    # `setting` fixture is approval format.
-    body = logged_in_admin.get(f"/admin/settings/{setting['id']}").get_data(as_text=True)
+def test_committee_setting_hides_cost_shows_committee(app, logged_in_admin):
+    """A plain approval vote (no budget) is committee voting: committee size is
+    relevant, cost and budget are not (V3 Specific #1/#2)."""
+    with app.app_context():
+        sid = setting_api.create_setting("Board", "approval", budget_limit=0,
+                                         options=[("Ada", "", 0)])
+    body = logged_in_admin.get(f"/admin/settings/{sid}").get_data(as_text=True)
     assert "committee size" in body         # relevant for committee voting
     assert "<th>Cost</th>" not in body      # cost hidden (#1)
     assert "budget limit" not in body       # budget hidden (#1)
@@ -119,17 +132,18 @@ def test_approval_setting_hides_cost_shows_committee(app, setting, logged_in_adm
 # --------------------------------------------------------------------------
 
 def test_run_redirects_back_to_the_form_with_its_values(app, setting, logged_in_admin):
+    # The fixture is approval + a budget, so it offers budgeting rules.
     response = logged_in_admin.post(
         f"/admin/settings/{setting['id']}/run",
-        data={"rule_name": "approval_scoring", "scope": "dummy",
+        data={"rule_name": "greedy_budget", "scope": "dummy",
               "committee_size": "2"})
     assert response.status_code == 302
     location = response.headers["Location"]
-    assert "rule_name=approval_scoring" in location
+    assert "rule_name=greedy_budget" in location
     assert "scope=dummy" in location
     assert location.endswith("#run")
 
     # Following it, the form is pre-selected with those values.
     body = logged_in_admin.get(location).get_data(as_text=True)
-    assert 'value="approval_scoring" selected' in body
+    assert 'value="greedy_budget" selected' in body
     assert 'value="dummy" selected' in body

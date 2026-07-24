@@ -54,21 +54,42 @@ def register_rules() -> None:
     """
     from .. import rules
 
-    @rules.register_rule("fairpyx_round_robin", formats=("points", "ranking"))
-    def fairpyx_round_robin(setting_id: int, scope: str = generic.SCOPE_ALL, **_):
-        """Round-robin: agents take turns picking their most valued free item."""
-        from fairpyx import divide
-        from fairpyx.algorithms import round_robin
+    def _allocation_rule(name: str, headline: str, algorithm_import):
+        """Register one ``divide``-based fair-allocation rule.
 
-        allocation = divide(round_robin, to_fairpyx_instance(setting_id, scope))
-        # Bundles hold option *names* (to_fairpyx_instance builds the valuation
-        # matrix by name), so the allocation already reads in human terms; a
-        # per-item position cannot be attached to a whole bundle, which is the
-        # "show the name instead" fallback of design.md V3 Admin #7.
-        log = ["Rule: fairpyx round-robin (envy-free up to one item).",
-               f"Agents: {len(allocation)}.", "Allocation:"]
-        log += [f"  agent {agent}: {', '.join(map(str, bundle)) or '(nothing)'}"
-                for agent, bundle in allocation.items()]
-        outcome = [f"{agent}:{'|'.join(map(str, bundle))}"
-                   for agent, bundle in allocation.items()]
-        return rules.RuleResult(outcome=outcome, log_lines=log)
+        ``algorithm_import`` is a zero-argument callable that imports and
+        returns the fairpyx algorithm, so nothing is imported until the rule
+        runs (keeping this module importable without fairpyx).  Bundles hold
+        option *names* (to_fairpyx_instance builds the valuation matrix by
+        name), so an allocation already reads in human terms; a per-item
+        position cannot be attached to a whole bundle, which is the
+        "show the name instead" fallback of design.md V3 Admin #7.
+        """
+        @rules.register_rule(name, formats=("points", "ranking"))
+        def _rule(setting_id: int, scope: str = generic.SCOPE_ALL, **_):
+            from fairpyx import divide
+
+            allocation = divide(algorithm_import(),
+                                to_fairpyx_instance(setting_id, scope))
+            log = [headline, f"Agents: {len(allocation)}.", "Allocation:"]
+            log += [f"  agent {agent}: {', '.join(map(str, bundle)) or '(nothing)'}"
+                    for agent, bundle in allocation.items()]
+            outcome = [f"{agent}:{'|'.join(map(str, bundle))}"
+                       for agent, bundle in allocation.items()]
+            return rules.RuleResult(outcome=outcome, log_lines=log)
+        return _rule
+
+    _allocation_rule(
+        "fairpyx_round_robin",
+        "Rule: fairpyx round-robin (envy-free up to one item).",
+        lambda: __import__("fairpyx.algorithms", fromlist=["round_robin"]).round_robin)
+    _allocation_rule(
+        "fairpyx_bidirectional_round_robin",
+        "Rule: fairpyx bidirectional round-robin (reduces the last-picker penalty).",
+        lambda: __import__("fairpyx.algorithms",
+                           fromlist=["bidirectional_round_robin"]).bidirectional_round_robin)
+    _allocation_rule(
+        "fairpyx_serial_dictatorship",
+        "Rule: fairpyx serial dictatorship (each agent in turn takes all it wants).",
+        lambda: __import__("fairpyx.algorithms",
+                           fromlist=["serial_dictatorship"]).serial_dictatorship)

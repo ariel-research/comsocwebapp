@@ -55,7 +55,19 @@ def register_rules() -> None:
     """Register this library's rules.  Called by :mod:`comsocwebapp.adapters`."""
     from .. import rules
 
-    @rules.register_rule("pabutools_mes", formats=("budget",))
+    def _funding_log(headline: str, instance, profile, setting_id, winners):
+        """Shared log body for the budgeting rules below."""
+        options = {o["id"]: o for o in generic.fetch_options(setting_id)}
+        spent = sum(options[oid]["cost"] for oid in winners)
+        return [headline,
+                f"Budget limit: {instance.budget_limit}.",
+                f"Ballots: {len(profile)}, projects: {len(instance)}.",
+                f"Funded {len(winners)} projects for {spent} of"
+                f" {instance.budget_limit}:",
+                *(f"  {generic.option_label(options[oid])}" for oid in winners)]
+
+    @rules.register_rule("pabutools_mes", formats=("approval", "budget"),
+                         needs_budget=True)
     def pabutools_mes(setting_id: int, scope: str = generic.SCOPE_ALL, **_):
         """Method of Equal Shares over cost satisfaction."""
         from pabutools.election import Cost_Sat
@@ -64,12 +76,19 @@ def register_rules() -> None:
         instance, profile = to_pabutools_instance(setting_id, scope)
         allocation = method_of_equal_shares(instance, profile, sat_class=Cost_Sat)
         winners = [int(project.name) for project in allocation]
-        options = {o["id"]: o for o in generic.fetch_options(setting_id)}
-        spent = sum(options[oid]["cost"] for oid in winners)
-        log = ["Rule: pabutools Method of Equal Shares (Cost satisfaction).",
-               f"Budget limit: {instance.budget_limit}.",
-               f"Ballots: {len(profile)}, projects: {len(instance)}.",
-               f"Funded {len(winners)} projects for {spent} of"
-               f" {instance.budget_limit}:",
-               *(f"  {generic.option_label(options[oid])}" for oid in winners)]
+        log = _funding_log("Rule: pabutools Method of Equal Shares (Cost"
+                           " satisfaction).", instance, profile, setting_id, winners)
+        return rules.RuleResult(outcome=winners, log_lines=log)
+
+    @rules.register_rule("pabutools_phragmen", formats=("approval", "budget"),
+                         needs_budget=True)
+    def pabutools_phragmen(setting_id: int, scope: str = generic.SCOPE_ALL, **_):
+        """Sequential Phragmén: a load-balancing participatory-budgeting rule."""
+        from pabutools.rules import sequential_phragmen
+
+        instance, profile = to_pabutools_instance(setting_id, scope)
+        allocation = sequential_phragmen(instance, profile)
+        winners = [int(project.name) for project in allocation]
+        log = _funding_log("Rule: pabutools sequential Phragmén.",
+                           instance, profile, setting_id, winners)
         return rules.RuleResult(outcome=winners, log_lines=log)

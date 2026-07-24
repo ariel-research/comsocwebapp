@@ -6,6 +6,10 @@
 {# A points setting may carry a point limit (budget_limit): when it does, the
    values must add up to exactly that (V3 Participant #1). #}
 {% set point_limit = setting.budget_limit if setting.pref_format == 'points' else 0 %}
+{# Project costs are shown for participatory budgeting -- approval (or budget)
+   ballots with a spending budget -- and nowhere else (V3 Specific #1). #}
+{% set is_budgeting = setting.pref_format == 'budget'
+                      or (setting.pref_format == 'approval' and setting.budget_limit) %}
 
 {% if setting.pref_format == 'approval' %}
   <p class="hint">Tick every option you approve of.</p>
@@ -31,7 +35,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <table>
     <thead><tr><th>#</th><th>Option</th><th>Description</th>
-      {% if setting.pref_format == 'budget' %}<th>Cost</th>{% endif %}
+      {% if is_budgeting %}<th>Cost</th>{% endif %}
       <th>Your answer</th></tr></thead>
     <tbody>
       {% for o in options %}
@@ -39,7 +43,7 @@
         <td>{{ o.position }}</td>
         <td><label for="option_{{ o.id }}">{{ o.name }}</label></td>
         <td>{{ o.description }}</td>
-        {% if setting.pref_format == 'budget' %}<td>{{ o.cost }}</td>{% endif %}
+        {% if is_budgeting %}<td>{{ o.cost }}</td>{% endif %}
         <td>
           {% if setting.pref_format == 'approval' %}
             <input type="hidden" name="option_{{ o.id }}" value="0">

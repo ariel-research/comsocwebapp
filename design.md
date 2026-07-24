@@ -126,3 +126,21 @@ Library should be supported on Python 3.12 onwards. Simplify the code accordingl
 
 2. In the "participatory budgeting" and "fair allocation" settings the committee size is irrelevant. It should not be shown under "Run a rule".
 
+
+# Version 4
+
+## Admin GUI
+
+1. Under the "Participation" heading, show all votes - both the votes of dummy users and the votes of real users. There is no need for a second subsection shwoing the dummy users alone.
+
+2. PB setting does not show the right rules: it shows abcvoting rules such as pav and approval scoring, and does not show pabutools rules such as mes and phragmen.
+
+## Examples
+
+1. In fair allocation example, add two more fairpyx rules.
+
+## Documenation
+
+1. Add a detailed document on what should be added to add option to login and register via external providers.
+
+

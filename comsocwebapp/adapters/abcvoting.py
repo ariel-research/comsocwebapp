@@ -44,7 +44,7 @@ def register_rules() -> None:
     """Register this library's rules.  Called by :mod:`comsocwebapp.adapters`."""
     from .. import rules
 
-    @rules.register_rule("abcvoting_pav", formats=("approval",))
+    @rules.register_rule("abcvoting_pav", formats=("approval",), needs_budget=False)
     def abcvoting_pav(setting_id: int, scope: str = generic.SCOPE_ALL,
                       committee_size: int = 3, **_):
         """Proportional Approval Voting."""

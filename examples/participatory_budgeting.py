@@ -48,13 +48,16 @@ PROJECTS = [
 # A rule of this application's own
 # --------------------------------------------------------------------------
 
-@rules.register_rule("utilitarian_greedy_pb")
+@rules.register_rule("utilitarian_greedy_pb", formats=("approval", "budget"),
+                     needs_budget=True)
 def utilitarian_greedy_pb(setting_id, scope=adapters.SCOPE_ALL, **_):
     """Fund projects by raw approval count until the budget runs out.
 
     A custom rule is just a function returning a :class:`rules.RuleResult`;
     whatever it puts in ``log_lines`` is what admins and participants read on
-    the results page.
+    the results page.  ``needs_budget=True`` marks it a budgeting rule, so it
+    appears for this participatory-budgeting setting but not for a plain
+    committee vote (design.md V4 Admin #2).
     """
     options = {o["id"]: o for o in adapters.fetch_options(setting_id)}
     support = {oid: 0 for oid in options}

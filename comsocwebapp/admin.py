@@ -89,14 +89,13 @@ def setting_detail(setting_id: int):
             " WHERE setting_id = ? ORDER BY id",
             (setting_id,),
         ),
-        participants=adapters.fetch_participants(setting_id),
-        # The dummy voters' ballots are shown inline under Participation, so the
-        # admin no longer needs a separate page (design.md V3 Admin #1).
-        dummy_ballots=_dummy_ballots(setting_id),
+        # Every voter's ballot -- real and dummy alike -- shown in one table
+        # under Participation (design.md V4 Admin #1).
+        participant_ballots=_participant_ballots(setting_id),
         logs=logs,
-        # Only rules that fit this setting's format are offered
-        # (design.md V3 Admin #5).
-        rule_names=rules.available_rules(setting["pref_format"]),
+        # Only rules that fit this setting's format *and* its budget are
+        # offered (design.md V3 Admin #5, V4 Admin #2).
+        rule_names=rules.available_rules(setting),
         scopes=(adapters.SCOPE_ALL, adapters.SCOPE_REAL, adapters.SCOPE_DUMMY),
         statuses=STATUSES,
         distributions=dummy.DISTRIBUTIONS,
@@ -110,19 +109,22 @@ def setting_detail(setting_id: int):
     )
 
 
-def _dummy_ballots(setting_id: int) -> list[dict]:
-    """Every dummy voter of this setting with the ballot it carries.
+def _participant_ballots(setting_id: int) -> list[dict]:
+    """Every voter of this setting -- real and dummy -- with its ballot.
 
     Keyed "ballot" not "values": in Jinja, ``ballot.values`` would resolve to
-    the dict's ``.values()`` method rather than to our data.
+    the dict's ``.values()`` method rather than to our data.  Only dummy
+    ballots are editable by the admin; the ``is_dummy`` flag lets the template
+    show the edit/delete controls just for those.
     """
     ballots = []
-    for voter in adapters.fetch_participants(setting_id, adapters.SCOPE_DUMMY):
+    for voter in adapters.fetch_participants(setting_id):
         values = {
             row["option_id"]: row["value"]
             for row in adapters.fetch_user_preferences(voter["user_id"], setting_id)
         }
-        ballots.append({"user_id": voter["user_id"], "ballot": values,
+        ballots.append({"user_id": voter["user_id"], "email": voter["email"],
+                        "is_dummy": voter["is_dummy"], "ballot": values,
                         "total": sum(value or 0 for value in values.values())})
     return ballots
 

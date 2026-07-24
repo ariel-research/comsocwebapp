@@ -41,15 +41,23 @@ _REGISTRY: dict[str, Callable[..., RuleResult]] = {}
 #: Which preference formats each rule applies to.  ``None`` means "any format";
 #: otherwise only settings whose ``pref_format`` is in the tuple offer the rule.
 _RULE_FORMATS: dict[str, tuple[str, ...] | None] = {}
+#: Whether a rule needs a spending budget.  ``True`` = only offer it when the
+#: setting has a budget limit (participatory budgeting); ``False`` = only offer
+#: it when there is none (plain committee voting); ``None`` = do not care.
+_RULE_NEEDS_BUDGET: dict[str, bool | None] = {}
 
 
-def register_rule(name: str, formats: tuple[str, ...] | None = None):
+def register_rule(name: str, formats: tuple[str, ...] | None = None,
+                  needs_budget: bool | None = None):
     """Decorator registering a rule under ``name``.
 
     ``formats`` lists the preference formats the rule makes sense for (e.g.
-    ``("approval",)`` for a committee-voting rule).  It drives the admin's rule
-    picker, so a fair-allocation setting never offers a budgeting rule and vice
-    versa.  ``None`` keeps the rule available everywhere.
+    ``("approval",)`` for a committee-voting rule).  ``needs_budget`` further
+    splits the approval ballots that committee voting and participatory
+    budgeting share: budgeting rules take ``needs_budget=True`` so they surface
+    only when the setting carries a budget, and committee rules take
+    ``False`` so they step aside once one does.  Both drive the admin's rule
+    picker (design.md V4 Admin #2); ``None`` means "always applicable".
 
     Applications extend the package by importing it and decorating their own
     function -- no subclassing, no configuration file.
@@ -57,17 +65,28 @@ def register_rule(name: str, formats: tuple[str, ...] | None = None):
     def decorator(func):
         _REGISTRY[name] = func
         _RULE_FORMATS[name] = formats
+        _RULE_NEEDS_BUDGET[name] = needs_budget
         return func
     return decorator
 
 
-def available_rules(pref_format: str | None = None) -> list[str]:
-    """Rule names, optionally narrowed to those valid for ``pref_format``."""
-    if pref_format is None:
+def available_rules(setting=None) -> list[str]:
+    """Rule names, narrowed to those that fit ``setting``.
+
+    ``setting`` is a mapping with ``pref_format`` and ``budget_limit`` (the row
+    :func:`adapters.fetch_setting` returns), or ``None`` for the full list.  A
+    rule fits when the setting's format is among its ``formats`` *and* the
+    presence of a budget matches its ``needs_budget``.
+    """
+    if setting is None:
         return sorted(_REGISTRY)
+    pref_format = setting["pref_format"]
+    has_budget = bool(setting.get("budget_limit"))
     return sorted(
-        name for name, formats in _RULE_FORMATS.items()
-        if formats is None or pref_format in formats
+        name for name in _REGISTRY
+        if (_RULE_FORMATS[name] is None or pref_format in _RULE_FORMATS[name])
+        and (_RULE_NEEDS_BUDGET[name] is None
+             or _RULE_NEEDS_BUDGET[name] == has_budget)
     )
 
 
@@ -118,7 +137,7 @@ def _winner_labels(setting_id: int, winner_ids) -> str:
 # Built-in rules (no external dependencies)
 # --------------------------------------------------------------------------
 
-@register_rule("approval_scoring", formats=("approval",))
+@register_rule("approval_scoring", formats=("approval",), needs_budget=False)
 def approval_scoring(setting_id: int, scope: str = adapters.SCOPE_ALL,
                      committee_size: int = 1, **_) -> RuleResult:
     """Elect the ``committee_size`` options with the most approvals."""
@@ -158,7 +177,7 @@ def borda(setting_id: int, scope: str = adapters.SCOPE_ALL,
     return RuleResult(outcome=winners, log_lines=log)
 
 
-@register_rule("greedy_budget", formats=("budget",))
+@register_rule("greedy_budget", formats=("approval", "budget"), needs_budget=True)
 def greedy_budget(setting_id: int, scope: str = adapters.SCOPE_ALL, **_) -> RuleResult:
     """Greedy participatory budgeting: best approvals-per-currency first."""
     setting = adapters.fetch_setting(setting_id)

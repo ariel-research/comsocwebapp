@@ -10,8 +10,10 @@
   <label>Name <input name="name" value="{{ option.name }}" required></label>
   <label>Description
     <input name="description" value="{{ option.description or '' }}"></label>
-  {# Cost only matters for participatory budgeting (V3 Specific #1). #}
-  {% if setting.pref_format == 'budget' %}
+  {# Cost only matters for participatory budgeting: approval (or budget)
+     ballots with a spending budget (V3 Specific #1). #}
+  {% if setting.pref_format == 'budget'
+        or (setting.pref_format == 'approval' and setting.budget_limit) %}
   <label>Cost <input name="cost" type="number" min="0" value="{{ option.cost }}"></label>
   {% endif %}
   <button type="submit">Save</button>

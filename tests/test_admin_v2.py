@@ -30,14 +30,15 @@ def test_delete_option_via_gui_renumbers(app, setting, logged_in_admin):
 
 
 def test_dummy_list_shows_generated_ballots(app, setting, logged_in_admin):
-    """Dummy ballots now live inline on the setting page (V3 Admin #1)."""
+    """Dummy ballots appear in the single Participation table (V4 Admin #1)."""
     with app.app_context():
         dummy.generate_dummy_users(setting["id"], 4, seed=1)
     response = logged_in_admin.get(f"/admin/settings/{setting['id']}")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Dummy voters (4)" in body
-    assert body.count("edit") >= 4
+    assert "Participation (4 ballots cast)" in body
+    assert body.count("dummy") >= 4    # every dummy row is labelled
+    assert body.count("edit") >= 4     # and carries an edit control
 
 
 def test_admin_can_edit_a_dummy_ballot(app, setting, logged_in_admin):

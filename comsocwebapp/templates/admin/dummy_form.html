@@ -3,6 +3,10 @@
 {% block heading %}Dummy voter #{{ user_id }} — {{ setting.title }}{% endblock %}
 {% block content %}
 
+{# Cost is shown for participatory budgeting only (V3 Specific #1). #}
+{% set is_budgeting = setting.pref_format == 'budget'
+                      or (setting.pref_format == 'approval' and setting.budget_limit) %}
+
 <p class="hint">
   {% if setting.pref_format == 'approval' %}
     1 approves the option, 0 does not.
@@ -21,14 +25,14 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <table>
     <thead><tr><th>#</th><th>Option</th>
-      {% if setting.pref_format == 'budget' %}<th>Cost</th>{% endif %}
+      {% if is_budgeting %}<th>Cost</th>{% endif %}
       <th>Value</th></tr></thead>
     <tbody>
       {% for p in preferences %}
       <tr>
         <td>{{ p.position }}</td>
         <td><label for="option_{{ p.option_id }}">{{ p.option_name }}</label></td>
-        {% if setting.pref_format == 'budget' %}<td>{{ p.cost }}</td>{% endif %}
+        {% if is_budgeting %}<td>{{ p.cost }}</td>{% endif %}
         <td><input type="number" id="option_{{ p.option_id }}"
                    name="option_{{ p.option_id }}" value="{{ p.value or 0 }}"></td>
       </tr>
